@@ -2,11 +2,15 @@
 
 Pseudonymisiert personenbezogene Daten im Browser, bevor sie an ein KI-Modell gehen — und schreibt die Platzhalter in der Antwort wieder zurück.
 
-Eine einzelne HTML-Datei. Kein Backend, keine Abhängigkeiten, kein Build. Öffnet direkt per Doppelklick.
+Svelte 5 · TypeScript · Vite. Kein Backend, kein Server, keine Laufzeit-Abhängigkeit.
 
+```bash
+pnpm install
+pnpm dev      # Entwicklung
+pnpm build    # → dist/index.html, eine einzige Datei
 ```
-dataguard_mahmut_kisecok.html
-```
+
+`pnpm build` erzeugt **eine** in sich geschlossene `dist/index.html` (~123 kB). Die lässt sich weitergeben und per Doppelklick direkt aus `file://` öffnen — kein Server, keine Installation. Das ist Absicht: ein Werkzeug, dessen Versprechen „nichts verlässt den Browser“ lautet, sollte als eine prüfbare Datei vorliegen.
 
 > **Prototyp.** Die Erkennung ist regelbasiert und best-effort. Vor dem Senden immer selbst prüfen — siehe [Grenzen](#grenzen).
 
@@ -77,17 +81,33 @@ Jede Regel ist einzeln abschaltbar.
 
 ## Technik
 
-Eine Datei, Vanilla JS, keine Abhängigkeiten.
+```
+src/
+├─ lib/          reines TypeScript, kein Svelte-Import — der prüfbare Kern
+├─ state/        reaktive Klassen (Svelte-5-Runen)
+├─ components/   ein Anliegen pro Datei
+└─ styles/       tokens · base · primitives
+```
 
-Die Erkennung liefert **Zeichen-Offsets**, keinen umgeschriebenen String. Das macht die Live-Hervorhebung möglich und die Ersetzung exakt: Ein globales `split`/`join` hätte jedes Vorkommen einer Teilzeichenfolge ersetzt und aus dem erkannten Namen `Jan` heraus das Wort `Januar` beschädigt.
+`lib/` importiert bewusst nichts aus `state/` oder `svelte`. Die Erkennung ist eine reine Funktion von `(text, activeRules, manualMarks, mutedValues)` — genau das macht sie überprüfbar.
+
+Sie liefert **Zeichen-Offsets**, keinen umgeschriebenen String. Das macht die Live-Hervorhebung möglich und die Ersetzung exakt: Ein globales `split`/`join` hätte jedes Vorkommen einer Teilzeichenfolge ersetzt und aus dem erkannten Namen `Jan` heraus das Wort `Januar` beschädigt.
 
 ```
-detect(text)      → Spans {start, end, value, type}, Überlappung nach Priorität aufgelöst
-buildRun(text)    → pseudonymisierter Text + Mapping, ein Durchlauf über die Spans
+detect(text, …)   → Spans {start, end, value, type}, Überlappung nach Priorität aufgelöst
+buildRun(text, …) → pseudonymisierter Text + Mapping, ein Durchlauf über die Spans
 restoreFrom(text) → Platzhalter zurück, längster Token zuerst, Reste werden gemeldet
 ```
 
-Die Hervorhebung ist ein `<div>`-Spiegel unter einem transparenten `<textarea>` — beide teilen exakt dieselben Textmetriken. Kein `contenteditable`, damit Undo, IME und Textauswahl nativ bleiben.
+Die Erkennung ist eine `$derived`-Kette, kein „jetzt pseudonymisieren“-Schritt. Der ausgehende Text ist dadurch immer aktuell, und Senden ist nur noch eine Übertragung — nichts, was man auslösen muss.
+
+Die Hervorhebung ist ein `<div>`-Spiegel hinter einem transparenten `<textarea>`; beide teilen exakt dieselben Textmetriken. Kein `contenteditable`, damit Undo, IME und Rechtschreibprüfung nativ bleiben.
+
+Der einzige Ort, an dem eine Netzwerkanfrage entsteht, ist `callModel` in [`src/lib/providers.ts`](src/lib/providers.ts). Die Funktion bekommt den pseudonymisierten Text als `string` und hat keinen Zugriff auf das Mapping — damit kann keine spätere Änderung dort eines durchlassen.
+
+## Mitmachen
+
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md). Gesucht sind vor allem **Unit-Tests für `lib/`** — `detect`, `buildRun` und `restoreFrom` sind reine Funktionen und noch ungetestet.
 
 ## Lizenz
 

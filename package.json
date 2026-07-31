@@ -1,0 +1,27 @@
+{
+  "name": "dataguard",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Pseudonymisiert personenbezogene Daten im Browser, bevor sie an ein KI-Modell gehen — und schreibt die Platzhalter in der Antwort zurück.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mkisecok/dataGuard.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@tsconfig/svelte": "^5.0.8",
+    "svelte": "^5.56.8",
+    "svelte-check": "^4.7.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

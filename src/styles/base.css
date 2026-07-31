@@ -1,0 +1,71 @@
+/**
+ * Reset, document surface, and things that can only be set globally.
+ *
+ * Fonts load from Google Fonts. Every stack has a real system fallback
+ * (Georgia for the serif, system-ui for the sans) so an offline or air-gapped
+ * copy degrades in typography only, never in legibility — which matters for a
+ * tool whose point is that it works without a network.
+ */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  /* Square, not rounded — rounded scrollbar thumbs read as "app chrome". */
+  background: var(--rule);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink3);
+}
+
+/**
+ * An Akte should print like one. Everything interactive drops out, leaving the
+ * document, the findings and the answer — which is what someone would attach to
+ * a processing record.
+ */
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

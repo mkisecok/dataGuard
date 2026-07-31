@@ -1,0 +1,101 @@
+/**
+ * Design tokens.
+ *
+ * Identity: a German legal instrument (Akte). Paper and ink, hairline rules,
+ * serif numerals, generous whitespace. Explicitly NOT a generic AI product —
+ * no violet gradient, no emoji iconography, no 12px pill buttons.
+ *
+ * The palette carries exactly three signal colours, assigned by data tier:
+ *
+ *   tier 1  ink navy      direct identifiers (name, email, phone, address, DOB)
+ *   tier 2  ochre         identifier and financial numbers
+ *   tier 3  sealing wax   Art. 9 GDPR special categories — reserved, used
+ *                         nowhere else in the interface
+ *   tier 0  muted ink     hand-marked, no category of its own
+ *
+ * That reservation is the whole point. An earlier version coloured twelve PII
+ * types twelve different ways, which made Art. 9 data look like just another
+ * hue instead of the thing that carries the highest legal duty.
+ */
+
+:root,
+html[data-theme='light'] {
+  --paper: #f2efe7;
+  --sheet: #fffefb;
+  --sheet2: #f8f5ee;
+  --rule: #d8d1c0;
+  --rule2: #e9e4d7;
+  --ink: #191f29;
+  --ink2: #4a5566;
+  --ink3: #85806f;
+
+  --navy: #1f3a5f;
+  --navy-soft: rgba(31, 58, 95, 0.09);
+  --ochre: #8a6a1f;
+  --ochre-soft: rgba(138, 106, 31, 0.11);
+  --wax: #a8302a;
+  --wax-soft: rgba(168, 48, 42, 0.09);
+  --seal: #2f6b4f;
+
+  --lift: 0 1px 2px rgba(25, 31, 41, 0.05), 0 8px 28px rgba(25, 31, 41, 0.08);
+  --lift2: 0 2px 4px rgba(25, 31, 41, 0.06), 0 18px 48px rgba(25, 31, 41, 0.14);
+
+  /* Inverted foreground for solid navy fills. */
+  --on-navy: #fffefb;
+
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+}
+
+html[data-theme='dark'] {
+  --paper: #12141a;
+  --sheet: #191c22;
+  --sheet2: #1e222a;
+  --rule: #303540;
+  --rule2: #262b33;
+  --ink: #e9e5da;
+  --ink2: #aab2c0;
+  --ink3: #7c8493;
+
+  --navy: #7fa8d4;
+  --navy-soft: rgba(127, 168, 212, 0.13);
+  --ochre: #d1a94a;
+  --ochre-soft: rgba(209, 169, 74, 0.13);
+  --wax: #d4635c;
+  --wax-soft: rgba(212, 99, 92, 0.14);
+  --seal: #5fb98c;
+
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 28px rgba(0, 0, 0, 0.4);
+  --lift2: 0 2px 4px rgba(0, 0, 0, 0.45), 0 18px 48px rgba(0, 0, 0, 0.55);
+
+  --on-navy: #12141a;
+}
+
+/**
+ * Tier colour resolution.
+ *
+ * Components write `class="… t{tier}"` and read `--tier` / `--tier-soft`. This
+ * is the single hop from "how sensitive is this" to "what colour is it", so the
+ * reservation above cannot be broken by accident in a component.
+ *
+ * These live in a plain stylesheet, not a component `<style>` block, because the
+ * tier number is computed at runtime — Svelte's scoper cannot prove such a
+ * selector is used and would strip it.
+ */
+.t0 {
+  --tier: var(--ink3);
+  --tier-soft: transparent;
+}
+.t1 {
+  --tier: var(--navy);
+  --tier-soft: var(--navy-soft);
+}
+.t2 {
+  --tier: var(--ochre);
+  --tier-soft: var(--ochre-soft);
+}
+.t3 {
+  --tier: var(--wax);
+  --tier-soft: var(--wax-soft);
+}
