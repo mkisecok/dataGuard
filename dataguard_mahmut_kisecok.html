@@ -1,0 +1,2334 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataGuard — Pseudonymisierung</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ═══ TOKENS ══════════════════════════════════════════════════════════════
+     Identity: German legal instrument (Akte). Paper + ink, hairline rules,
+     serif numerals. Exactly three signal colours, assigned by data tier — the
+     sealing-wax red is reserved for Art. 9 DSGVO and used nowhere else.       */
+  :root, html[data-theme="light"] {
+    --paper:  #f2efe7;
+    --sheet:  #fffefb;
+    --sheet2: #f8f5ee;
+    --rule:   #d8d1c0;
+    --rule2:  #e9e4d7;
+    --ink:    #191f29;
+    --ink2:   #4a5566;
+    --ink3:   #85806f;
+    --navy:      #1f3a5f;
+    --navy-soft: rgba(31,58,95,0.09);
+    --ochre:      #8a6a1f;
+    --ochre-soft: rgba(138,106,31,0.11);
+    --wax:      #a8302a;
+    --wax-soft: rgba(168,48,42,0.09);
+    --seal:     #2f6b4f;
+    --lift: 0 1px 2px rgba(25,31,41,0.05), 0 8px 28px rgba(25,31,41,0.08);
+    --lift2: 0 2px 4px rgba(25,31,41,0.06), 0 18px 48px rgba(25,31,41,0.14);
+    --sans:  'DM Sans', system-ui, sans-serif;
+    --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --mono:  'JetBrains Mono', ui-monospace, monospace;
+  }
+  html[data-theme="dark"] {
+    --paper:  #12141a;
+    --sheet:  #191c22;
+    --sheet2: #1e222a;
+    --rule:   #303540;
+    --rule2:  #262b33;
+    --ink:    #e9e5da;
+    --ink2:   #aab2c0;
+    --ink3:   #7c8493;
+    --navy:      #7fa8d4;
+    --navy-soft: rgba(127,168,212,0.13);
+    --ochre:      #d1a94a;
+    --ochre-soft: rgba(209,169,74,0.13);
+    --wax:      #d4635c;
+    --wax-soft: rgba(212,99,92,0.14);
+    --seal:     #5fb98c;
+    --lift: 0 1px 2px rgba(0,0,0,0.4), 0 8px 28px rgba(0,0,0,0.4);
+    --lift2: 0 2px 4px rgba(0,0,0,0.45), 0 18px 48px rgba(0,0,0,0.55);
+  }
+
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans); font-size: 14px;
+    background: var(--paper); color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; border-radius: 2px; }
+  [hidden] { display: none !important; }
+
+  /* ── shared primitives ───────────────────────────────────────────────────── */
+  .numeral {
+    font-family: var(--serif); font-size: 18px; font-weight: 600;
+    color: var(--ink3); font-variant-numeric: lining-nums;
+    min-width: 30px; flex-shrink: 0; letter-spacing: 0.5px;
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 1.4px; color: var(--ink3);
+  }
+  .tally {
+    font-family: var(--serif); font-size: 17px; font-weight: 600;
+    font-variant-numeric: lining-nums; color: var(--ink);
+  }
+
+  button { font-family: inherit; color: inherit; }
+
+  .btn {
+    height: 32px; padding: 0 14px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.4px;
+    border: 1px solid var(--rule); border-radius: 3px;
+    background: var(--sheet); color: var(--ink2);
+    cursor: pointer; white-space: nowrap;
+    transition: border-color 0.14s, color 0.14s, background 0.14s;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.on { border-color: var(--navy); color: var(--navy); background: var(--navy-soft); }
+  .btn.ok { border-color: var(--seal); color: var(--seal); }
+
+  .btn-send {
+    height: 38px; padding: 0 24px;
+    font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.6px;
+    border: 1px solid var(--navy); border-radius: 3px;
+    background: var(--navy); color: var(--sheet);
+    cursor: pointer; transition: opacity 0.14s, transform 0.08s;
+  }
+  html[data-theme="dark"] .btn-send { color: #12141a; }
+  .btn-send:hover:not(:disabled) { opacity: 0.88; }
+  .btn-send:active:not(:disabled) { transform: translateY(1px); }
+  .btn-send:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* a disclosure row: label left, marker right, hairline underneath */
+  .disc {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 9px 0; background: none; border: 0; border-bottom: 1px solid var(--rule2);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.9px;
+    text-transform: uppercase; color: var(--ink3);
+    cursor: pointer; text-align: left; transition: color 0.14s;
+  }
+  .disc:hover { color: var(--navy); }
+  .disc .marker { margin-left: auto; font-size: 9px; transition: transform 0.16s; }
+  .disc[aria-expanded="true"] { color: var(--ink2); }
+  .disc[aria-expanded="true"] .marker { transform: rotate(180deg); }
+
+  /* ═══ HEADER ══════════════════════════════════════════════════════════════ */
+  header {
+    position: sticky; top: 0; z-index: 60;
+    background: var(--sheet);
+    border-bottom: 1px solid var(--rule);
+    padding: 0 clamp(16px, 3vw, 40px);
+    height: 60px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo {
+    font-family: var(--serif); font-size: 21px; font-weight: 600;
+    letter-spacing: -0.2px; color: var(--ink);
+  }
+  .logo em { font-style: normal; color: var(--wax); }
+  .logo-sub {
+    font-family: var(--sans); font-size: 12px; font-weight: 400;
+    color: var(--ink3); margin-left: 10px; letter-spacing: 0;
+  }
+  .stamp {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--seal);
+    border: 1px solid var(--seal); border-radius: 2px;
+    padding: 3px 8px; white-space: nowrap;
+  }
+  .head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+  .pill {
+    display: flex; align-items: center; gap: 9px;
+    height: 32px; padding: 0 12px;
+    border: 1px solid var(--rule); border-radius: 3px;
+    background: var(--sheet2); cursor: pointer;
+    font-family: var(--mono); font-size: 11px; color: var(--ink2);
+    transition: border-color 0.14s;
+  }
+  .pill:hover { border-color: var(--navy); }
+  .pill .pill-model { color: var(--ink); }
+  .pill .pill-flag { font-size: 9.5px; letter-spacing: 0.8px; color: var(--ink3); }
+  .pill .pill-flag.warn { color: var(--wax); }
+  .pill .pill-gear { color: var(--ink3); font-size: 12px; }
+  .pill.unset { border-color: var(--wax); color: var(--wax); background: var(--wax-soft); }
+
+  .icon-btn {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border: 1px solid var(--rule); border-radius: 3px;
+    background: var(--sheet2); cursor: pointer;
+    display: grid; place-items: center; font-size: 13px; color: var(--ink2);
+    transition: border-color 0.14s, color 0.14s;
+  }
+  .icon-btn:hover { border-color: var(--navy); color: var(--navy); }
+
+  /* ═══ LAYOUT ══════════════════════════════════════════════════════════════ */
+  .wrap {
+    max-width: 1340px; margin: 0 auto;
+    padding: 28px clamp(16px, 3vw, 40px) 96px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 306px; gap: 28px;
+    align-items: start;
+  }
+  .col-main { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+
+  /* ═══ SHEET / STAGE ══════════════════════════════════════════════════════ */
+  .sheet {
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px;
+    box-shadow: var(--lift);
+  }
+  .stage-head {
+    display: flex; align-items: baseline; gap: 4px;
+    padding: 16px 24px 12px; border-bottom: 1px solid var(--rule2);
+  }
+  .stage-head h2 {
+    font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: -0.1px;
+  }
+  .stage-head .head-note { font-size: 11.5px; color: var(--ink3); margin-left: 12px; }
+  .stage-tools { margin-left: auto; display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+
+  /* collapsed summary strip that replaces stage I after sending */
+  .strip {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 24px;
+    font-size: 12.5px; color: var(--ink2);
+  }
+  .strip .numeral { font-size: 15px; }
+  .strip-facts { font-family: var(--mono); font-size: 11px; color: var(--ink3); }
+  .strip-facts b { color: var(--ink); font-weight: 500; }
+  .strip-facts .art9 { color: var(--wax); }
+
+  /* ═══ COMPOSER ═══════════════════════════════════════════════════════════ */
+  .composer { position: relative; }
+  /* Mirror and textarea MUST keep identical metrics or highlights drift. */
+  .doc-metrics {
+    font-family: var(--sans); font-size: 14.5px; line-height: 1.85;
+    letter-spacing: 0; padding: 22px 26px;
+    white-space: pre-wrap; overflow-wrap: break-word; word-break: normal;
+    border: 0; margin: 0; text-align: left; tab-size: 4;
+  }
+  .composer-mirror {
+    position: absolute; inset: 0;
+    color: transparent; pointer-events: none; overflow: hidden;
+    user-select: none;
+  }
+  .composer textarea {
+    position: relative; display: block; width: 100%;
+    min-height: 320px; resize: none; overflow: hidden;
+    background: transparent; color: var(--ink);
+    outline: none; caret-color: var(--navy);
+  }
+  .composer textarea::placeholder { color: var(--ink3); }
+
+  /* Highlights live in the mirror, so they sit *behind* the real glyphs. */
+  .composer-mirror mark {
+    color: transparent; background: none; border-radius: 1px;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+  .composer-mirror mark.t1 { background: var(--navy-soft);  border-bottom: 2px solid var(--navy); }
+  .composer-mirror mark.t2 { background: var(--ochre-soft); border-bottom: 2px solid var(--ochre); }
+  .composer-mirror mark.t3 { background: var(--wax-soft);   border-bottom: 2px solid var(--wax); }
+  .composer-mirror mark.t0 { background: none; border-bottom: 2px dotted var(--ink3); }
+  .composer-mirror mark.muted { background: none; border-bottom: 1px dotted var(--ink3); }
+  .composer-mirror mark.focus { outline: 1px solid var(--ink2); outline-offset: 1px; }
+
+  /* ── instruction line: sent verbatim, so it is visually quarantined ─────── */
+  .instruction {
+    border-top: 1px solid var(--rule2);
+    padding: 14px 26px 16px;
+    display: flex; flex-direction: column; gap: 7px;
+    background: var(--sheet2);
+  }
+  .instruction-label { display: flex; align-items: center; gap: 9px; }
+  .instruction-label label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--ink3); }
+  .flag-raw {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.9px; text-transform: uppercase;
+    color: var(--wax); border: 1px solid var(--wax); border-radius: 2px; padding: 1px 6px;
+  }
+  .instruction input {
+    width: 100%; height: 36px; padding: 0 12px;
+    font-family: var(--sans); font-size: 14px;
+    background: var(--sheet); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 3px; outline: none;
+  }
+  .instruction input:focus { border-color: var(--navy); }
+  .instruction input::placeholder { color: var(--ink3); }
+
+  .send-row {
+    border-top: 1px solid var(--rule2);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .send-hint { font-size: 11.5px; color: var(--ink3); flex: 1; min-width: 140px; line-height: 1.5; }
+  .send-hint.err { color: var(--wax); }
+  .send-hint.busy { color: var(--ochre); }
+  .send-hint kbd {
+    font-family: var(--mono); font-size: 10px; color: var(--ink2);
+    border: 1px solid var(--rule); border-radius: 2px; padding: 1px 4px; background: var(--sheet2);
+  }
+
+  /* ═══ PREVIEW (inline disclosure) ════════════════════════════════════════ */
+  .preview-zone { padding: 0 24px 4px; }
+  .preview-body { padding: 4px 0 18px; }
+  .preview-text {
+    font-family: var(--sans); font-size: 13.5px; line-height: 1.95;
+    color: var(--ink2); white-space: pre-wrap; overflow-wrap: break-word;
+    background: var(--sheet2); border: 1px solid var(--rule2); border-radius: 3px;
+    padding: 18px 20px; max-height: 460px; overflow: auto;
+  }
+  .tok {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+    padding: 1px 5px; border-radius: 2px; border: 1px solid; cursor: help;
+    white-space: nowrap;
+  }
+  .tok.t1 { color: var(--navy);  background: var(--navy-soft);  border-color: var(--navy); }
+  .tok.t2 { color: var(--ochre); background: var(--ochre-soft); border-color: var(--ochre); }
+  .tok.t3 { color: var(--wax);   background: var(--wax-soft);   border-color: var(--wax); }
+  .tok.t0 { color: var(--ink2);  background: var(--sheet);      border-color: var(--rule); }
+
+  /* ═══ ANSWER ═════════════════════════════════════════════════════════════ */
+  .answer {
+    padding: 22px 26px;
+    font-family: var(--sans); font-size: 14.5px; line-height: 1.9;
+    color: var(--ink); white-space: pre-wrap; overflow-wrap: break-word;
+  }
+  .answer.placeholder-view { font-family: var(--mono); font-size: 13px; color: var(--ink2); }
+  .answer-empty { color: var(--ink3); font-size: 13px; }
+  .answer.flash { animation: flash 1.1s ease; }
+  @keyframes flash { 0% { background: var(--navy-soft); } 100% { background: transparent; } }
+
+  .notice {
+    margin: 16px 24px 0; padding: 11px 14px;
+    border-left: 3px solid var(--wax); background: var(--wax-soft);
+    font-size: 12px; line-height: 1.6; color: var(--ink);
+  }
+  .notice.info { border-left-color: var(--navy); background: var(--navy-soft); }
+  .notice code { font-family: var(--mono); font-size: 11px; }
+
+  .manual-zone { padding: 0 24px 20px; }
+  .manual-zone textarea {
+    width: 100%; min-height: 130px; margin-top: 10px; padding: 14px 16px;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+    background: var(--sheet2); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 3px; outline: none; resize: vertical;
+  }
+  .manual-zone textarea:focus { border-color: var(--navy); }
+  .manual-row { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* ═══ RIGHT RAIL ═════════════════════════════════════════════════════════ */
+  /* The rail scrolls as one column rather than giving each section its own
+     scrollbar — with the rules expanded, a flex-shared height squeezed the
+     findings list (the thing you actually read) down to a few rows. */
+  .rail {
+    position: sticky; top: 88px;
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px;
+    box-shadow: var(--lift);
+    display: flex; flex-direction: column;
+    max-height: calc(100vh - 116px);
+    overflow-y: auto;
+  }
+  .rail-head {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 15px 18px 12px;
+    background: var(--sheet); border-bottom: 1px solid var(--rule);
+  }
+  .rail-head h2 { font-family: var(--serif); font-size: 15px; font-weight: 600; }
+  .rail-head .tally { margin-left: auto; }
+  .rail-scroll { flex: 0 0 auto; }
+
+  .tier-head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 12px 18px 5px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.1px; text-transform: uppercase;
+  }
+  .tier-head .bar { width: 14px; height: 2px; flex-shrink: 0; }
+  .tier-head.t1 { color: var(--navy); }  .tier-head.t1 .bar { background: var(--navy); }
+  .tier-head.t2 { color: var(--ochre); } .tier-head.t2 .bar { background: var(--ochre); }
+  .tier-head.t3 { color: var(--wax); }   .tier-head.t3 .bar { background: var(--wax); }
+  .tier-head.t0 { color: var(--ink3); }  .tier-head.t0 .bar { background: var(--ink3); }
+
+  .find {
+    display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 8px;
+    padding: 7px 18px; cursor: default;
+    border-left: 2px solid transparent;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .find:hover { background: var(--sheet2); border-left-color: var(--rule); }
+  .find.hot { background: var(--sheet2); border-left-color: var(--navy); }
+  .find-mark { font-family: var(--serif); font-size: 13px; color: var(--ink3); line-height: 1.5; }
+  .find.t3 .find-mark { color: var(--wax); }
+  .find-token {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .find.t1 .find-token { color: var(--navy); }
+  .find.t2 .find-token { color: var(--ochre); }
+  .find.t3 .find-token { color: var(--wax); }
+  .find.t0 .find-token { color: var(--ink2); }
+  .find-art9 {
+    font-size: 8.5px; letter-spacing: 0.7px; color: var(--wax);
+    border: 1px solid var(--wax); border-radius: 2px; padding: 0 4px; margin-left: auto;
+  }
+  .find-orig {
+    grid-column: 2; font-size: 12px; color: var(--ink2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px;
+  }
+  .find-act {
+    grid-column: 2; margin-top: 4px;
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; color: var(--ink3);
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .find-act:hover { color: var(--navy); }
+  .find.off .find-orig { text-decoration: line-through; color: var(--ink3); }
+  .find.off .find-token { color: var(--ink3); text-decoration: line-through; }
+
+  .rail-empty { padding: 26px 18px; font-size: 12.5px; color: var(--ink3); line-height: 1.7; }
+
+  .rail-sec { border-top: 1px solid var(--rule); padding: 0 18px; }
+  .rail-sec .disc { border-bottom: 0; }
+  .rail-foot { border-top: 1px solid var(--rule); padding: 12px 18px 14px; }
+  .rail-foot .seal-line {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.6px;
+    color: var(--seal); margin-bottom: 4px;
+  }
+  .legal-body { padding: 2px 0 8px; }
+  .legal-body ol { list-style: none; counter-reset: lg; }
+  .legal-body li {
+    counter-increment: lg; position: relative; padding-left: 20px; margin-bottom: 9px;
+    font-size: 11.5px; line-height: 1.6; color: var(--ink2);
+  }
+  .legal-body li::before {
+    content: '§' counter(lg); position: absolute; left: 0; top: 0;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink3);
+  }
+  .legal-body strong { color: var(--wax); font-weight: 600; }
+
+  /* ── rule groups inside the rail ─────────────────────────────────────────── */
+  .rules-body { padding: 4px 0 12px; }
+  .rule-group { margin-bottom: 14px; }
+  .rule-group:last-child { margin-bottom: 4px; }
+  .rg-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+  .rg-head h3 { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .rg-head .rg-count { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink3); }
+  .rule-group.art9 .rg-head h3 { color: var(--wax); }
+  .rule-group.art9 .rg-count { color: var(--wax); }
+  .rg-links { display: flex; gap: 5px; align-items: center; margin-bottom: 5px; }
+  .rg-link {
+    background: none; border: 0; cursor: pointer; padding: 0;
+    font-family: var(--mono); font-size: 10px; color: var(--ink3);
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .rg-link:hover { color: var(--navy); }
+  .rg-sep { color: var(--rule); font-size: 9px; }
+  .rule-toggle {
+    display: flex; align-items: center; gap: 9px;
+    min-height: 27px; padding: 2px 0; cursor: pointer; user-select: none;
+    font-size: 12.5px; color: var(--ink3); transition: color 0.12s;
+  }
+  .rule-toggle:hover { color: var(--ink); }
+  .rule-toggle .dot {
+    width: 13px; height: 13px; flex-shrink: 0; border-radius: 2px;
+    border: 1px solid var(--rule); background: var(--sheet2);
+    display: grid; place-items: center; transition: background 0.12s, border-color 0.12s;
+  }
+  .rule-toggle.active { color: var(--ink); }
+  .rule-toggle.active .dot { background: var(--navy); border-color: var(--navy); }
+  .rule-toggle.active .dot::after {
+    content: ''; width: 5px; height: 5px; background: var(--sheet); border-radius: 1px;
+  }
+  .rule-group.art9 .rule-toggle.active .dot { background: var(--wax); border-color: var(--wax); }
+
+  /* ═══ SLIDE-OVER (model config) ══════════════════════════════════════════ */
+  .scrim {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(25,31,41,0.32); backdrop-filter: blur(1.5px);
+    animation: fade 0.16s ease;
+  }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .slideover {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 101;
+    width: min(400px, 100vw); background: var(--sheet);
+    border-left: 1px solid var(--rule); box-shadow: var(--lift2);
+    display: flex; flex-direction: column;
+    animation: slidein 0.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  @keyframes slidein { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .so-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--rule);
+  }
+  .so-head h2 { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+  .so-head .icon-btn { margin-left: auto; }
+  .so-body { padding: 20px 22px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+  .so-foot {
+    padding: 14px 22px; border-top: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px;
+    text-transform: uppercase; color: var(--ink3);
+  }
+  .field select, .field input {
+    width: 100%; height: 36px; padding: 0 11px;
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--sheet2); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 3px; outline: none;
+  }
+  .field select:focus, .field input:focus { border-color: var(--navy); }
+  .field-row { display: flex; gap: 8px; }
+  .field-row input { flex: 1; }
+  .field-hint { font-size: 11.5px; color: var(--ink3); line-height: 1.55; }
+  .transfer {
+    border: 1px solid var(--rule); border-left: 3px solid var(--seal);
+    background: var(--sheet2); padding: 11px 13px;
+    font-size: 11.5px; line-height: 1.6; color: var(--ink2);
+  }
+  .transfer.warn { border-left-color: var(--wax); }
+  .transfer .t-head {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--seal); display: block; margin-bottom: 4px;
+  }
+  .transfer.warn .t-head { color: var(--wax); }
+
+  /* ═══ FLOATING UI ════════════════════════════════════════════════════════ */
+  .pop {
+    position: fixed; z-index: 120;
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px;
+    box-shadow: var(--lift2); min-width: 210px; max-width: 280px;
+    animation: fade 0.12s ease;
+  }
+  .pop-head {
+    padding: 9px 12px 7px; border-bottom: 1px solid var(--rule2);
+  }
+  .pop-type { font-family: var(--mono); font-size: 10px; letter-spacing: 0.9px; text-transform: uppercase; }
+  .pop-type.t1 { color: var(--navy); } .pop-type.t2 { color: var(--ochre); }
+  .pop-type.t3 { color: var(--wax); }  .pop-type.t0 { color: var(--ink2); }
+  .pop-val { font-size: 12.5px; color: var(--ink); margin-top: 3px; word-break: break-word; }
+  .pop-tok { font-family: var(--mono); font-size: 11px; color: var(--ink3); margin-top: 3px; }
+  .pop-list { max-height: 260px; overflow-y: auto; padding: 4px 0; }
+  .pop-item {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 7px 12px; background: none; border: 0; cursor: pointer;
+    font-family: var(--sans); font-size: 12.5px; color: var(--ink2); text-align: left;
+    transition: background 0.1s, color 0.1s;
+  }
+  .pop-item:hover { background: var(--sheet2); color: var(--ink); }
+  .pop-item .swatch { width: 3px; height: 13px; flex-shrink: 0; }
+  .pop-item .swatch.t1 { background: var(--navy); } .pop-item .swatch.t2 { background: var(--ochre); }
+  .pop-item .swatch.t3 { background: var(--wax); }  .pop-item .swatch.t0 { background: var(--ink3); }
+  .pop-item .pop-code { margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--ink3); letter-spacing: 0.5px; }
+  .pop-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 1.1px; text-transform: uppercase;
+    color: var(--ink3); padding: 8px 12px 4px;
+  }
+  .pop-sep { height: 1px; background: var(--rule2); margin: 4px 0; }
+
+  .sel-chip {
+    position: fixed; z-index: 118;
+    height: 30px; padding: 0 13px;
+    background: var(--navy); color: var(--sheet);
+    border: 0; border-radius: 3px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.4px;
+    box-shadow: var(--lift2); animation: fade 0.12s ease;
+  }
+  html[data-theme="dark"] .sel-chip { color: #12141a; }
+
+  .rail-fab {
+    display: none;
+    position: fixed; right: 16px; bottom: 16px; z-index: 70;
+    height: 42px; padding: 0 18px;
+    background: var(--sheet); border: 1px solid var(--navy); border-radius: 3px;
+    color: var(--navy); cursor: pointer; box-shadow: var(--lift2);
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.5px;
+  }
+
+  /* ═══ SCROLLBARS ═════════════════════════════════════════════════════════ */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
+
+  /* ═══ RESPONSIVE ═════════════════════════════════════════════════════════ */
+  @media (max-width: 1080px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); }
+    .rail {
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 80;
+      max-height: 72vh; border-radius: 0;
+      border: 0; border-top: 1px solid var(--rule);
+      box-shadow: var(--lift2);
+      transform: translateY(100%); transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1);
+    }
+    .rail.open { transform: translateY(0); }
+    .rail-fab { display: block; }
+    .rail-close { display: grid !important; }
+  }
+  @media (max-width: 620px) {
+    header { height: auto; padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .logo { font-size: 18px; }
+    .logo-sub, .stamp { display: none; }
+    .head-right { width: 100%; }
+    .pill { flex: 1; }
+    .wrap { padding: 16px 14px 88px; gap: 16px; }
+    .doc-metrics { padding: 16px 16px; font-size: 14px; }
+    .stage-head, .send-row, .strip { padding-left: 16px; padding-right: 16px; }
+    .instruction { padding: 12px 16px 14px; }
+    .preview-zone, .manual-zone { padding-left: 16px; padding-right: 16px; }
+    .answer { padding: 18px 16px; }
+    .notice { margin-left: 16px; margin-right: 16px; }
+    .stage-head { flex-wrap: wrap; }
+    .stage-tools { width: 100%; margin-left: 0; }
+    .btn-send { width: 100%; }
+    .slideover { width: 100vw; }
+  }
+
+  @media print {
+    header, .rail, .rail-fab, .send-row, .instruction, .scrim, .slideover, .pop, .sel-chip { display: none !important; }
+    body { background: #fff; }
+    .sheet { box-shadow: none; border-color: #bbb; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">Data<em>Guard</em><span class="logo-sub">Pseudonymisierung nach DSGVO</span></span>
+  <span class="stamp">lokal · kein Server</span>
+  <div class="head-right">
+    <button class="pill unset" id="cfgPill" aria-haspopup="dialog">
+      <span class="pill-model" id="pillModel">Kein Modell konfiguriert</span>
+      <span class="pill-flag" id="pillFlag"></span>
+      <span class="pill-gear" aria-hidden="true">⚙</span>
+    </button>
+    <button class="icon-btn" id="themeToggle" title="Darstellung wechseln" aria-label="Darstellung wechseln">◐</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="col-main">
+
+    <!-- ══ I. EINGABE ═══════════════════════════════════════════════════════ -->
+    <section class="sheet" id="stageInput">
+
+      <!-- collapsed strip, shown in place of the composer after sending -->
+      <div class="strip" id="inputStrip" hidden>
+        <span class="numeral">I.</span>
+        <span>Eingabe</span>
+        <span class="strip-facts" id="stripFacts"></span>
+        <div class="stage-tools">
+          <button class="btn" id="reopenBtn">Bearbeiten</button>
+        </div>
+      </div>
+
+      <div id="inputFull">
+        <div class="stage-head">
+          <span class="numeral">I.</span>
+          <h2>Eingabe</h2>
+          <span class="head-note">Erkennung läuft live · nichts verlässt den Browser</span>
+          <div class="stage-tools">
+            <button class="btn" id="genBtn" aria-haspopup="menu">Beispiel ▾</button>
+            <button class="btn" id="clearBtn">Leeren</button>
+          </div>
+        </div>
+
+        <div class="composer" id="composer">
+          <div class="composer-mirror doc-metrics" id="mirror" aria-hidden="true"></div>
+          <textarea id="doc" class="doc-metrics" spellcheck="false"
+            aria-describedby="sendHint"
+            placeholder="Akte, Protokoll oder E-Mail hier einfügen.
+
+Erkannte personenbezogene Daten werden direkt im Text unterstrichen.
+Anklicken, um eine Erkennung zu prüfen oder zu verwerfen.
+Text markieren, um einen eigenen Platzhalter zu setzen."></textarea>
+        </div>
+
+        <div class="instruction">
+          <div class="instruction-label">
+            <label for="instr">Anweisung an das Modell</label>
+            <span class="flag-raw" title="Dieses Feld wird unverändert übertragen und nicht pseudonymisiert.">ungefiltert</span>
+          </div>
+          <input type="text" id="instr" placeholder="z. B. Fasse diese Akte in fünf Sätzen zusammen">
+        </div>
+
+        <div class="send-row">
+          <button class="btn-send" id="sendBtn" disabled>Senden ▸</button>
+          <span class="send-hint" id="sendHint"><kbd>Strg</kbd> + <kbd>Enter</kbd> sendet</span>
+        </div>
+
+        <div class="preview-zone">
+          <button class="disc" id="prevToggle" aria-expanded="false" aria-controls="prevBody">
+            Vorschau — was das Modell erhält
+            <span class="marker" aria-hidden="true">▾</span>
+          </button>
+          <div class="preview-body" id="prevBody" hidden>
+            <div class="preview-text" id="previewText"></div>
+            <div class="manual-row">
+              <button class="btn" id="copyPrevBtn">Pseudonymisierten Text kopieren</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ II. ÜBERMITTLUNG ═════════════════════════════════════════════════ -->
+    <section class="sheet" id="stageSend" hidden>
+      <div class="strip">
+        <span class="numeral">II.</span>
+        <span>Übermittlung</span>
+        <span class="strip-facts" id="sendFacts"></span>
+        <div class="stage-tools">
+          <button class="btn" id="manualToggle" aria-expanded="false" aria-controls="manualZone">Antwort manuell einfügen</button>
+        </div>
+      </div>
+      <div class="manual-zone" id="manualZone" hidden>
+        <p class="field-hint">Falls das Modell nicht direkt erreichbar ist (CORS, kein Key): pseudonymisierten Text oben kopieren, im Chat des Anbieters senden und die Antwort hier einfügen.</p>
+        <textarea id="restoreInput" spellcheck="false" placeholder="Antwort des Modells hier einfügen — sie sollte die «TYPE_N»-Platzhalter noch enthalten."></textarea>
+        <div class="manual-row">
+          <button class="btn" id="restoreBtn">Platzhalter zurückschreiben</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ III. ANTWORT ═════════════════════════════════════════════════════ -->
+    <section class="sheet" id="stageAnswer" hidden>
+      <div class="stage-head">
+        <span class="numeral">III.</span>
+        <h2>Antwort</h2>
+        <span class="head-note" id="answerNote">Platzhalter lokal zurückgeschrieben</span>
+        <div class="stage-tools">
+          <button class="btn" id="rawToggle">Platzhalter-Fassung</button>
+          <button class="btn" id="copyAnswerBtn">Kopieren</button>
+        </div>
+      </div>
+      <div class="notice" id="answerWarn" hidden></div>
+      <div class="answer" id="answerBody"></div>
+    </section>
+
+  </div>
+
+  <!-- ══ RAIL ═══════════════════════════════════════════════════════════════ -->
+  <aside class="rail" id="rail" aria-label="Erkennungen und Regeln">
+    <div class="rail-head">
+      <h2>Erkannt</h2>
+      <span class="tally" id="tally">0</span>
+      <button class="icon-btn rail-close" id="railClose" style="display:none" aria-label="Schließen">✕</button>
+    </div>
+
+    <div class="rail-scroll" id="railScroll">
+      <div class="rail-empty" id="railEmpty">
+        Noch keine personenbezogenen Daten erkannt. Die Liste füllt sich, während Sie schreiben.
+      </div>
+    </div>
+
+    <div class="rail-sec">
+      <button class="disc" id="rulesToggle" aria-expanded="false" aria-controls="rulesBody">
+        Regeln <span id="rulesCount" style="font-family:var(--mono)">15/15</span>
+        <span class="marker" aria-hidden="true">▾</span>
+      </button>
+      <div class="rules-body" id="rulesBody" hidden>
+
+        <div class="rule-group">
+          <div class="rg-head">
+            <h3>Direkte Identifikatoren</h3>
+            <span class="rg-count" data-group="standard">7/7</span>
+          </div>
+          <div class="rg-links">
+            <button class="rg-link" data-group="standard" data-mode="all">alle</button><span class="rg-sep">·</span><button class="rg-link" data-group="standard" data-mode="none">keine</button>
+          </div>
+          <div class="rule-list">
+            <div class="rule-toggle active" data-rule="name" title="z. B. „Frau Weber“, „Patient: Max Mustermann“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Voller Name</div>
+            <div class="rule-toggle active" data-rule="email" title="z. B. max@example.de" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>E-Mail</div>
+            <div class="rule-toggle active" data-rule="phone" title="z. B. +49 151 23456789" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Telefon</div>
+            <div class="rule-toggle active" data-rule="address" title="z. B. „Hauptstraße 12“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Adresse</div>
+            <div class="rule-toggle active" data-rule="date" title="z. B. „geb. 12.03.1985“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Geburtsdatum</div>
+            <div class="rule-toggle active" data-rule="passport" title="z. B. DE1234567" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Ausweis / Pass</div>
+            <div class="rule-toggle active" data-rule="ip" title="z. B. 192.168.1.42" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>IP-Adresse</div>
+          </div>
+        </div>
+
+        <div class="rule-group">
+          <div class="rg-head">
+            <h3>Kenn- &amp; Finanznummern</h3>
+            <span class="rg-count" data-group="financial">4/4</span>
+          </div>
+          <div class="rg-links">
+            <button class="rg-link" data-group="financial" data-mode="all">alle</button><span class="rg-sep">·</span><button class="rg-link" data-group="financial" data-mode="none">keine</button>
+          </div>
+          <div class="rule-list">
+            <div class="rule-toggle active" data-rule="iban" title="z. B. DE89 3704 0044 …" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>IBAN</div>
+            <div class="rule-toggle active" data-rule="creditcard" title="z. B. 4123 4567 8901 2345" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Kreditkarte</div>
+            <div class="rule-toggle active" data-rule="taxid" title="11-stellige Steuer-ID (§ 139b AO)" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Steuer-ID</div>
+            <div class="rule-toggle active" data-rule="insurance" title="z. B. „Versicherten-Nr. …“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Versicherungs-Nr.</div>
+          </div>
+        </div>
+
+        <div class="rule-group art9">
+          <div class="rg-head">
+            <h3>Art. 9 DSGVO</h3>
+            <span class="rg-count" data-group="art9">4/4</span>
+          </div>
+          <div class="rg-links">
+            <button class="rg-link" data-group="art9" data-mode="all">alle</button><span class="rg-sep">·</span><button class="rg-link" data-group="art9" data-mode="none">keine</button>
+          </div>
+          <div class="rule-list">
+            <div class="rule-toggle active" data-rule="health" title="z. B. „Diagnose: …“, „Diabetes“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Gesundheitsdaten</div>
+            <div class="rule-toggle active" data-rule="religion" title="z. B. „Konfession: …“, „katholisch“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Religion</div>
+            <div class="rule-toggle active" data-rule="political" title="z. B. „Partei: …“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Politische Meinung</div>
+            <div class="rule-toggle active" data-rule="sexual" title="z. B. „sexuelle Orientierung: …“" role="checkbox" aria-checked="true" tabindex="0"><span class="dot"></span>Sexuelle Orientierung</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="rail-foot">
+      <div class="seal-line">Mapping bleibt lokal · nie gesendet</div>
+      <button class="disc" id="legalToggle" aria-expanded="false" aria-controls="legalBody">
+        Rechtliche Hinweise
+        <span class="marker" aria-hidden="true">▾</span>
+      </button>
+      <div class="legal-body" id="legalBody" hidden>
+        <ol>
+          <li>Dieses Werkzeug <strong>pseudonymisiert</strong> (Art. 4 Nr. 5 DSGVO) — es anonymisiert nicht. Die Ausgabe bleibt rechtlich personenbezogen, solange das Mapping existiert.</li>
+          <li>Die Erkennung ist <strong>best-effort</strong> (Regex + Wortlisten). Besonders Freitext-Namen und Art.-9-Daten können übersehen werden — Vorschau vor dem Senden selbst prüfen.</li>
+          <li>Platzhalter entfernen keine Quasi-Identifikatoren: seltene Diagnose + Ort + Arbeitgeber können eine Person weiterhin identifizierbar machen (Restrisiko).</li>
+          <li>API-Keys und Mapping bleiben lokal; das Anweisungsfeld wird <strong>ungefiltert</strong> gesendet — dort keine personenbezogenen Daten eintragen.</li>
+          <li>Namen werden nur mit Kontext erkannt (Anrede/Titel, Personen-Label oder bekannter Vorname). <strong>Unbekannte Namen im Freitext</strong> markieren und per Auswahl-Schaltfläche ersetzen.</li>
+        </ol>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<button class="rail-fab" id="railFab">Erkannt <span id="fabTally">0</span></button>
+
+<!-- ══ SLIDE-OVER: model configuration ══════════════════════════════════════ -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="slideover" id="cfgPanel" hidden role="dialog" aria-modal="true" aria-labelledby="cfgTitle">
+  <div class="so-head">
+    <h2 id="cfgTitle">Modell konfigurieren</h2>
+    <button class="icon-btn" id="cfgClose" aria-label="Schließen">✕</button>
+  </div>
+  <div class="so-body">
+    <div class="field">
+      <label for="aiProvider">Anbieter</label>
+      <select id="aiProvider">
+        <option value="mistral">Mistral — EU</option>
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic Claude</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="ollama">Ollama — lokal</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="aiModel">Modell</label>
+      <select id="aiModel"></select>
+      <input type="text" id="aiModelCustom" placeholder="eigene Modell-ID" hidden>
+    </div>
+    <div class="field" id="keyField">
+      <label for="aiKey">API-Key</label>
+      <div class="field-row">
+        <input type="password" id="aiKey" placeholder="API-Key" autocomplete="off">
+        <button class="btn" id="aiKeyClear" title="Key aus diesem Browser entfernen">Löschen</button>
+      </div>
+      <p class="field-hint">Wird ausschließlich im <code>localStorage</code> dieses Browsers gespeichert und direkt an den Anbieter gesendet.</p>
+    </div>
+    <div class="field" id="urlField" hidden>
+      <label for="aiUrl">Base URL</label>
+      <input type="text" id="aiUrl" placeholder="http://localhost:11434">
+      <p class="field-hint">Für <code>file://</code>-Seiten muss Ollama mit <code>OLLAMA_ORIGINS=*</code> gestartet werden.</p>
+    </div>
+    <div class="transfer" id="transferNote"></div>
+  </div>
+  <div class="so-foot">
+    <button class="btn-send" id="cfgApply">Übernehmen</button>
+    <span class="field-hint" id="cfgState"></span>
+  </div>
+</aside>
+
+<script>
+
+// Placeholder token format: «TYPE_N» — guillemets are unusual enough that models rarely
+// reword them, and the restore matcher below tolerates mild reformatting.
+function tok(type, i) { return `«${type}_${i + 1}»`; }
+
+// ── Validators ────────────────────────────────────────────────────────────────
+// NOTE: no IBAN mod-97 / Luhn hard filters. This is a PII stripper — recall beats
+// precision. Rejecting a value that fails a checksum would let a real but mistyped
+// IBAN/card leak to the AI, which is the exact failure we must avoid.
+
+// Capitalized bigrams that look like names but are not.
+const NAME_DENY = new Set([
+  'deutsche','bank','sparkasse','commerzbank','ing','dkb','klinikum','universität','freie',
+  'goethe','amtsgericht','landgericht','verwaltungsgericht','innere','medizin','techcorp',
+  'datasystems','digital','solutions','innovateco','berliner','hauptstraße','kastanienweg',
+  'rosenplatz','lindenstraße','gartenweg','fichtenring','bachgasse','schillerstraße','marktplatz',
+  'die','der','das','islamische','evangelische','jüdische','römisch','katholische','zen',
+  'kreisverband','ortsverband','pfarrgemeinde'
+]);
+function nameValidate(m) {
+  const words = m.trim().replace(/^(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Prof\.?|Herr|Frau)\s+/i, '').split(/\s+/);
+  return !words.some(w => NAME_DENY.has(w.toLowerCase()));
+}
+
+// ── Name detection: context (title / person-label) OR first-name dictionary ──
+// German capitalises every noun, so a blind "two capitalised words" rule tags
+// "Nächster Termin" etc. as names. We only fire on real signals.
+const NAME_DICT = [
+  'Max','Lena','Jonas','Fatima','Mehmet','Sarah','David','Ayşe','Tobias','Mia','Kemal','Nina',
+  'Felix','Hana','Lucas','Selin','Emma','Noah','Zeynep','Julia','Anna','Laura','Marie','Sophie',
+  'Sophia','Hannah','Lea','Leon','Paul','Ben','Luis','Luca','Finn','Elias','Jan','Tim','Tom',
+  'Niklas','Simon','Moritz','Philipp','Alexander','Daniel','Michael','Thomas','Andreas','Stefan',
+  'Markus','Martin','Peter','Klaus','Wolfgang','Sabine','Petra','Claudia','Andrea','Katharina',
+  'Christina','Melanie','Nicole','Johanna','Charlotte','Amelie','Clara','Greta','Ida','Frieda',
+  'Maria','Sofia','Emre','Yusuf','Elif','Deniz','Cem','Burak','Ali','Ayla','Leyla','Murat',
+  'Hakan','Ece','Kerem','Berkay','Aylin','Merve','Can','Ahmet','Mustafa','Hüseyin','Zeyn',
+  'John','James','Robert','Mary','Linda','Anna','Anna-Lena','Marc','Marco','Matteo','Nico',
+  'Vincent','Oskar','Emil','Theo','Mila','Lina','Ella','Nele','Pia','Jana','Katrin','Ursula',
+  'Helga','Ingrid','Renate','Monika','Brigitte','Karl','Hans','Werner','Günter','Dieter','Horst',
+];
+const _UC = 'A-ZÄÖÜÇŞİĞ';
+const _LC = 'a-zäöüßçşğı';
+const _NAMECORE = `[${_UC}][${_LC}]{2,}(?:\\s+[${_UC}][${_LC}]{2,}){0,1}`;
+const _TITLES = 'Herr|Frau|Herrn|Dr\\.|Prof\\.|Rechtsanwalt|Rechtsanwältin|Mr\\.|Mrs\\.|Ms\\.';
+const _PLABELS = 'Name|Vorname|Nachname|Kunde|Kundin|Patient|Patientin|Mitarbeiter|Mitarbeiterin|'
+  + 'Mandant|Mandantin|Kläger|Beklagte[r]?|Beschuldigte[r]?|Studierender|Mitglied|Person|Berater|'
+  + 'Beraterin|Prüfer|Prüferin|Arzt|Ärztin|Ansprechpartner|Sachbearbeiter|Ratsuchende Person|'
+  + 'Behandelnder Arzt|Direkte Führungskraft|Führungskraft';
+const NAME_RE = new RegExp(
+  `(?<=\\b(?:${_TITLES})[ \\t]{1,2})${_NAMECORE}`
+  + `|(?<=\\b(?:${_PLABELS})[ \\t]*:[ \\t]*(?:(?:Dr|Prof|Herr|Frau|Rechtsanwalt|Rechtsanwältin)\\.?[ \\t]+)?)${_NAMECORE}`
+  + `|\\b(?:${NAME_DICT.join('|')})\\s+[${_UC}][${_LC}]{2,}(?:\\s+[${_UC}][${_LC}]{2,})?`,
+  'g'
+);
+
+const RULES = {
+  email: {
+    label: 'Email', icon: '✉', color: '#ff6b9d', bg: 'rgba(255,107,157,0.14)', border: 'rgba(255,107,157,0.35)',
+    re: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g,
+    replace: (m, i) => tok('EMAIL', i)
+  },
+  phone: {
+    label: 'Phone', icon: '📞', color: '#ffa502', bg: 'rgba(255,165,2,0.14)', border: 'rgba(255,165,2,0.35)',
+    re: /\+?[\d \-()]{9,20}/g,
+    replace: (m, i) => tok('PHONE', i),
+    validate: m => { const d = m.replace(/\D/g, '').length; return d >= 7 && d <= 15; }
+  },
+  iban: {
+    label: 'IBAN', icon: '🏦', color: '#ff4757', bg: 'rgba(255,71,87,0.14)', border: 'rgba(255,71,87,0.35)',
+    re: /[A-Z]{2}\d{2}(?:[\s]?\d{2,4}){3,8}/g,
+    replace: (m, i) => tok('IBAN', i)
+  },
+  ip: {
+    label: 'IP address', icon: '🌐', color: '#eccc68', bg: 'rgba(236,204,104,0.14)', border: 'rgba(236,204,104,0.35)',
+    re: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+    replace: (m, i) => tok('IP', i),
+    validate: m => m.split('.').every(o => +o >= 0 && +o <= 255)
+  },
+  creditcard: {
+    label: 'Credit card', icon: '💳', color: '#ff6348', bg: 'rgba(255,99,72,0.14)', border: 'rgba(255,99,72,0.35)',
+    re: /\b(?:\d{4}[\s\-]?){3}\d{4}\b/g,
+    replace: (m, i) => tok('CARD', i)
+  },
+  passport: {
+    label: 'Passport / ID', icon: '🪪', color: '#a29bfe', bg: 'rgba(162,155,254,0.14)', border: 'rgba(162,155,254,0.35)',
+    re: /\b[A-Z]{1,2}[\s]?\d{6,9}\b/g,
+    replace: (m, i) => tok('ID', i)
+  },
+  date: {
+    label: 'Date of birth', icon: '📅', color: '#74b9ff', bg: 'rgba(116,185,255,0.14)', border: 'rgba(116,185,255,0.35)',
+    // Lookbehind keeps the label out of the match so the placeholder is a clean token.
+    re: /(?<=\b(?:born|DOB|geb\.?|Geburtsdatum|birthdate|birth date|date of birth)[:\s]{1,4})\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{2,4}/gi,
+    replace: (m, i) => tok('BIRTHDATE', i)
+  },
+  address: {
+    label: 'Street address', icon: '📍', color: '#55efc4', bg: 'rgba(85,239,196,0.14)', border: 'rgba(85,239,196,0.35)',
+    re: /\b\w[\w\s\-]{2,30}(?:str(?:aße|\.)?|straße|gasse|allee|weg|platz|ring|damm|chaussee)\s+\d+[a-z]?\b/gi,
+    replace: (m, i) => tok('ADDRESS', i)
+  },
+  name: {
+    label: 'Full name', icon: '👤', color: '#fd79a8', bg: 'rgba(253,121,168,0.14)', border: 'rgba(253,121,168,0.35)',
+    re: NAME_RE,
+    replace: (m, i) => tok('NAME', i),
+    validate: nameValidate
+  },
+  taxid: {
+    label: 'Tax ID', icon: '🧾', color: '#fdcb6e', bg: 'rgba(253,203,110,0.14)', border: 'rgba(253,203,110,0.35)',
+    re: /\b\d{11}\b/g,
+    replace: (m, i) => tok('TAXID', i),
+    validate: m => /^[1-9]/.test(m)
+  },
+  insurance: {
+    label: 'Insurance nr.', icon: '🏥', color: '#00cec9', bg: 'rgba(0,206,201,0.14)', border: 'rgba(0,206,201,0.35)',
+    re: /(?<=\b(?:Versicherten(?:\-Nr\.?|nummer)|KV-Nr\.?|Insurance\s+(?:No\.?|Nr\.?|Number))[:\s]{1,4})[A-Z0-9]{6,15}\b/gi,
+    replace: (m, i) => tok('INS_NR', i)
+  },
+  health: {
+    label: 'Health data', icon: '💊', color: '#e17055', bg: 'rgba(225,112,85,0.14)', border: 'rgba(225,112,85,0.35)',
+    art9: true,
+    // Keyword-prefixed clinical value (label kept out via lookbehind), OR standalone terms.
+    re: /(?<=\b(?:Diagnose|Medikation|Therapie(?:plan)?|Erkrankung|Befund|Symptome?|Behandlung|Operation|Krankheit|Allergie|Impfstatus|Blutgruppe|Blutzucker|Blutdruck|Cholesterin)[:\s]{1,4})[^\n]{3,80}|\b(?:HIV|AIDS|Diabetes(?:\s+mellitus(?:\s+Typ\s+\d)?)?|Hypertonie|Migräne|Depression|depressive\s+Episode|Hypothyreose|Asthma|Krebs|Karzinom|Tumor|Schizophrenie|Epilepsie|Demenz|Alzheimer|Multiple\s+Sklerose|Parkinson)\b/gi,
+    replace: (m, i) => tok('HEALTH_DATA', i)
+  },
+  religion: {
+    label: 'Religion', icon: '🕌', color: '#a29bfe', bg: 'rgba(162,155,254,0.14)', border: 'rgba(162,155,254,0.35)',
+    art9: true,
+    re: /(?<=\b(?:Religionszugehörigkeit|Religion|Konfession|Kirchensteuer|Glaube|faith|religious\s+affiliation|denomination)[:\s]{1,4})[^\n]{2,60}|\b(?:evangelisch|katholisch|römisch-katholisch|muslimisch|islamisch|jüdisch|buddhistisch|hinduistisch|orthodox|protestantisch)\b/gi,
+    replace: (m, i) => tok('RELIGION', i)
+  },
+  political: {
+    label: 'Political', icon: '🗳️', color: '#74b9ff', bg: 'rgba(116,185,255,0.14)', border: 'rgba(116,185,255,0.35)',
+    art9: true,
+    re: /(?<=\b(?:Partei(?:mitglied(?:schaft)?)?|Politische\s+(?:Überzeugung|Ansicht|Zugehörigkeit)|Ortsverband|Kreisverband|political\s+(?:party|affiliation|view))[:\s]{1,4})[^\n]{2,80}/gi,
+    replace: (m, i) => tok('POLITICAL', i)
+  },
+  sexual: {
+    label: 'Sexual orient.', icon: '🏳️‍🌈', color: '#fd79a8', bg: 'rgba(253,121,168,0.14)', border: 'rgba(253,121,168,0.35)',
+    art9: true,
+    re: /\b(?:sexuelle(?:r)?\s+(?:Orientierung|Identität)|Geschlechtsidentität|sexual\s+(?:orientation|identity)|gender\s+identity|homosexuell|bisexuell|pansexuell|nicht-binär|queer|lesbisch|schwul|trans(?:gender)?)[:\s]*[^\n]{0,60}/gi,
+    replace: (m, i) => tok('SEXUAL_ORIENT', i)
+  }
+};
+
+// Detector → output token TYPE. Many detectors collapse to one bucket (NUMBER) to
+// cut complexity; Art.9 groups stay distinct (DSGVO signal).
+const RULE_TYPE = {
+  name: 'NAME', email: 'EMAIL', phone: 'PHONE', address: 'ADDRESS', date: 'DATE',
+  iban: 'NUMBER', creditcard: 'NUMBER', taxid: 'NUMBER', passport: 'NUMBER',
+  insurance: 'NUMBER', ip: 'NUMBER',
+  health: 'HEALTH_DATA', religion: 'RELIGION', political: 'POLITICAL', sexual: 'SEXUAL_ORIENT',
+};
+
+// Display is keyed by output TYPE and carries only a label + a tier. Colour comes
+// from the tier via CSS classes (t0..t3) — three signal colours total, with the
+// sealing-wax red reserved for Art. 9 so it never competes with anything else.
+// tier 1 = direct identifiers, 2 = identifier/financial numbers, 3 = Art. 9, 0 = manual.
+const DISPLAY = {
+  NAME:          { label: 'Name',                   tier: 1 },
+  EMAIL:         { label: 'E-Mail',                 tier: 1 },
+  PHONE:         { label: 'Telefon',                tier: 1 },
+  ADDRESS:       { label: 'Adresse',                tier: 1 },
+  DATE:          { label: 'Geburtsdatum',           tier: 1 },
+  NUMBER:        { label: 'Kenn- / Finanznummer',   tier: 2 },
+  HEALTH_DATA:   { label: 'Gesundheitsdaten',       tier: 3 },
+  RELIGION:      { label: 'Religion',               tier: 3 },
+  POLITICAL:     { label: 'Politische Meinung',     tier: 3 },
+  SEXUAL_ORIENT: { label: 'Sexuelle Orientierung',  tier: 3 },
+  CUSTOM:        { label: 'Manuell markiert',       tier: 0 },
+};
+function displayFor(type) { return DISPLAY[type] || DISPLAY.CUSTOM; }
+function tierOf(type) { return displayFor(type).tier; }
+
+const TIER_LABEL = {
+  3: 'Art. 9 DSGVO',
+  1: 'Direkte Identifikatoren',
+  2: 'Kenn- & Finanznummern',
+  0: 'Manuell markiert',
+};
+// Art. 9 first: the most sensitive rows must be the ones you read without scrolling.
+const TIER_ORDER = [3, 1, 2, 0];
+
+// ── Sample generators ─────────────────────────────────────────────────────────
+const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
+const rndInt = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const pad = (n, l = 2) => String(n).padStart(l, '0');
+
+const FIRST_NAMES = ['Lena','Jonas','Fatima','Mehmet','Sarah','David','Ayşe','Tobias','Mia','Kemal','Nina','Felix','Hana','Lucas','Selin','Emma','Noah','Zeynep','Max','Julia'];
+const LAST_NAMES  = ['Müller','Schmidt','Yilmaz','Weber','Wagner','Özdemir','Fischer','Becker','Çelik','Hoffmann','Koch','Schulz','Richter','Klein','Wolf','Schröder','Neumann','Braun','Kaya','Zimmermann'];
+const CITIES      = ['Berlin','München','Hamburg','Frankfurt','Köln','Stuttgart','Düsseldorf','Leipzig','Dresden','Hannover'];
+const STREETS     = ['Hauptstraße','Berliner Allee','Kastanienweg','Rosenplatz','Lindenstraße','Gartenweg','Fichtenring','Bachgasse','Schillerstraße','Marktplatz'];
+const DOMAINS     = ['gmail.com','web.de','outlook.de','gmx.de','yahoo.de','t-online.de'];
+
+function randName() { return `${rnd(FIRST_NAMES)} ${rnd(LAST_NAMES)}`; }
+function randEmail(name) {
+  const parts = name.toLowerCase().split(' ');
+  const variants = [
+    `${parts[0]}.${parts[1]}@${rnd(DOMAINS)}`,
+    `${parts[0][0]}${parts[1]}@${rnd(DOMAINS)}`,
+    `${parts[0]}${rndInt(10,99)}@${rnd(DOMAINS)}`
+  ];
+  return rnd(variants);
+}
+function randPhone() {
+  const prefixes = ['+49 151','+49 152','+49 160','+49 170','+49 176','+49 30','+49 89'];
+  return `${rnd(prefixes)} ${rndInt(10000000,99999999)}`;
+}
+function randIBAN() {
+  return `DE${rndInt(10,99)} ${pad(rndInt(1000,9999),4)} ${pad(rndInt(1000,9999),4)} ${pad(rndInt(1000,9999),4)} ${pad(rndInt(1000,9999),4)} ${pad(rndInt(10,99),2)}`;
+}
+function randDate() {
+  return `${pad(rndInt(1,28))}.${pad(rndInt(1,12))}.${rndInt(1955,2002)}`;
+}
+function randIP() {
+  return `${rndInt(10,220)}.${rndInt(0,255)}.${rndInt(0,255)}.${rndInt(1,254)}`;
+}
+function randAddress() {
+  return `${rnd(STREETS)} ${rndInt(1,120)}, ${rndInt(10000,99999)} ${rnd(CITIES)}`;
+}
+function randCard() {
+  return `4${pad(rndInt(100,999),3)} ${pad(rndInt(1000,9999),4)} ${pad(rndInt(1000,9999),4)} ${pad(rndInt(1000,9999),4)}`;
+}
+function randPassport() {
+  return `DE${rndInt(1000000,9999999)}`;
+}
+function randDoctor() {
+  return `Dr. ${randName()}`;
+}
+
+const GENERATORS = {
+  health: () => {
+    const patient = randName();
+    const doctor  = randDoctor();
+    const conditions = [
+      ['Diabetes mellitus Typ 2','Metformin 500mg täglich','Blutzucker-Selbstkontrolle'],
+      ['Arterielle Hypertonie','Ramipril 10mg morgens','Blutdruckmessung wöchentlich'],
+      ['Depressive Episode','Sertralin 50mg täglich','Psychotherapie alle 2 Wochen'],
+      ['Hypothyreose','Levothyroxin 75μg nüchtern','TSH-Kontrolle nach 6 Wochen'],
+      ['Migräne mit Aura','Sumatriptan bei Bedarf','Migränetagebuch führen'],
+    ];
+    const [diag, med, plan] = rnd(conditions);
+    return `Patientenakte — Klinikum ${rnd(CITIES)}
+Erstellt: ${randDate()}  |  Fallnummer: KH-${rndInt(10000,99999)}
+
+Patient:
+  Name:           ${patient}
+  Geburtsdatum:   ${randDate()}
+  Adresse:        ${randAddress()}
+  Telefon:        ${randPhone()}
+  E-Mail:         ${randEmail(patient)}
+  Krankenversicherung: TK — Versicherten-Nr. ${rndInt(100000000,999999999)}
+
+Behandelnder Arzt: ${doctor}
+Station / Ambulanz: Innere Medizin, Zimmer ${rndInt(100,450)}
+
+Diagnose:
+  ${diag}
+
+Medikation:
+  ${med}
+
+Therapieplan:
+  ${plan}
+
+Notizen: ${doctor} empfiehlt Kontrolltermin in ${rndInt(4,12)} Wochen.
+Für Rückfragen: ${randEmail(doctor.replace('Dr. ',''))}`;
+  },
+
+  banking: () => {
+    const client = randName();
+    const advisor = randName();
+    const products = [
+      ['Tagesgeldkonto','2,40 % p.a.','flexibel verfügbar'],
+      ['ETF-Sparplan','MSCI World','monatlich 150 €'],
+      ['Baufinanzierung','2,85 % Sollzins','Laufzeit 25 Jahre'],
+      ['Businesskonto','Kreditlinie 15.000 €','Kontoführungsgebühr 9,90 €/Monat'],
+    ];
+    const [prod, detail, note] = rnd(products);
+    return `Beratungsprotokoll — ${rnd(['Sparkasse','Commerzbank','Deutsche Bank','ING','DKB'])} ${rnd(CITIES)}
+Datum: ${randDate()}  |  Beratungs-ID: BER-${rndInt(100000,999999)}
+
+Kunde:
+  Name:          ${client}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  Telefon:       ${randPhone()}
+  E-Mail:        ${randEmail(client)}
+  IBAN:          ${randIBAN()}
+  Kreditkarte:   ${randCard()}
+  Reisepass-Nr.: ${randPassport()}
+
+Berater: ${advisor}
+Thema:   ${prod}
+
+Produktdetails:
+  ${detail} — ${note}
+
+Risikoklasse: ${rnd(['1 – sicherheitsorientiert','2 – konservativ','3 – ertragsorientiert','4 – wachstumsorientiert'])}
+Nettogehalt p.M.: ${rndInt(2200,7500)} €
+
+Nächster Termin: ${randDate()}
+Kontakt Berater: ${randEmail(advisor)}  |  ${randPhone()}`;
+  },
+
+  university: () => {
+    const student = randName();
+    const prof    = `Prof. Dr. ${randName()}`;
+    const unis    = ['Freie Universität Berlin','LMU München','Universität Hamburg','TU Dresden','Goethe-Universität Frankfurt'];
+    const courses = [
+      ['Informatik (B.Sc.)','Algorithmen & Datenstrukturen','4. Semester'],
+      ['Rechtswissenschaften (Staatsexamen)','Bürgerliches Recht II','6. Semester'],
+      ['Psychologie (M.Sc.)','Klinische Psychologie','2. Mastersemester'],
+      ['Wirtschaftsinformatik (B.Sc.)','Datenbanksysteme','3. Semester'],
+      ['Medizin (Staatsexamen)','Anatomie Praktikum','2. Semester'],
+    ];
+    const [studiengang, modul, sem] = rnd(courses);
+    return `Immatrikulationsbescheinigung / Studierendendaten
+Universität: ${rnd(unis)}
+Ausgestellt: ${randDate()}  |  Matrikel-Nr.: ${rndInt(1000000,9999999)}
+
+Studierender:
+  Name:          ${student}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  E-Mail (uni):  ${student.split(' ')[0].toLowerCase()}.${student.split(' ')[1].toLowerCase()}@uni-${rnd(CITIES).toLowerCase()}.de
+  Telefon:       ${randPhone()}
+
+Studiengang:  ${studiengang}
+Semester:     ${sem}
+Aktuelles Modul: ${modul}
+Note letzte Prüfung: ${rnd(['1,3','1,7','2,0','2,3','2,7','3,0'])}
+
+Prüfer: ${prof}
+Kontakt: ${randEmail(prof.replace('Prof. Dr. ',''))}
+Sprechstunde: ${rnd(['Montag 10–12 Uhr','Dienstag 14–16 Uhr','Donnerstag 11–13 Uhr'])}
+Raum: ${rndInt(100,520)}
+
+IBAN (BAföG-Konto): ${randIBAN()}
+BAföG-Bescheid: ${rndInt(300,850)} €/Monat`;
+  },
+
+  political: () => {
+    const person = randName();
+    const parties = ['SPD','CDU','Die Grünen','FDP','Die Linke','AfD','BSW','Volt'];
+    const party   = rnd(parties);
+    const roles   = ['einfaches Mitglied','Ortsverbandsvorsitzender','Delegierter','Schatzmeister','Pressesprecher'];
+    return `Mitgliederdatenbank — ${party} Kreisverband ${rnd(CITIES)}
+Datenexport: ${randDate()}  |  Datensatz-ID: POL-${rndInt(10000,99999)}
+
+Mitglied:
+  Name:          ${person}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  Telefon:       ${randPhone()}
+  E-Mail:        ${randEmail(person)}
+  Eintrittsdatum: ${randDate()}
+  Mitglieds-Nr.: ${rndInt(100000,999999)}
+
+Funktion:     ${rnd(roles)}
+Partei:       ${party}
+Ortsverband:  ${party} ${rnd(CITIES)}-${rnd(['Mitte','Nord','Süd','Ost','West'])}
+
+Letzte Aktivität: ${rnd(['Wahlkampfstand','Mitgliederversammlung','Online-Abstimmung','Infostand','Podiumsdiskussion'])} am ${randDate()}
+Spendenhistorie (letztes Jahr): ${rndInt(0,1200)} €
+IBAN Lastschrift: ${randIBAN()}
+
+Hinweis: Gemäß Art. 9 DSGVO handelt es sich um besondere Kategorien personenbezogener Daten.`;
+  },
+
+  religious: () => {
+    const person = randName();
+    const faiths = [
+      {name:'Evangelische Kirche',org:'Evangelische Kirchengemeinde',role:'Kirchenvorstandsmitglied',fee:'Kirchensteuer: 9 % der Einkommensteuer'},
+      {name:'Römisch-Katholische Kirche',org:'Pfarrgemeinde St. Maria',role:'Ehrenamtlicher Messdiener-Leiter',fee:'Kirchensteuer: 8 % der Einkommensteuer'},
+      {name:'Islam (Sunnit.)',org:'Islamische Gemeinde',role:'Freitagsgebet-Organisator',fee:'Gemeindebeitrag: 10 €/Monat'},
+      {name:'Jüdische Gemeinde',org:'Jüdische Gemeinde',role:'Vorstandsmitglied',fee:'Mitgliedsbeitrag: gestaffelt nach Einkommen'},
+      {name:'Buddhismus',org:'Zen-Zentrum',role:'Meditationsgruppen-Leiter',fee:'Freiwillige Spende'},
+    ];
+    const faith = rnd(faiths);
+    return `Religionsgemeinschaft — Mitgliedsdaten
+Organisation: ${faith.org} ${rnd(CITIES)}
+Erstellt: ${randDate()}  |  Akte-Nr.: REL-${rndInt(1000,9999)}
+
+Person:
+  Name:          ${person}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  Telefon:       ${randPhone()}
+  E-Mail:        ${randEmail(person)}
+
+Religionszugehörigkeit: ${faith.name}
+Funktion:        ${faith.role}
+Eintrittsdatum:  ${randDate()}
+${faith.fee}
+IBAN (Lastschrift): ${randIBAN()}
+
+Taufe / Aufnahme: ${randDate()}
+Letzter Gottesdienst / Treffen: ${randDate()}
+
+Hinweis: Religionszugehörigkeit ist gem. Art. 9 Abs. 1 DSGVO eine besondere Kategorie personenbezogener Daten und unterliegt erhöhtem Schutz.`;
+  },
+
+  sexual: () => {
+    const person  = randName();
+    const advisor = randName();
+    const orgs    = ['Beratungsstelle Regenbogen','Antidiskriminierungsstelle','Queer Hilfe e.V.','LGBTQ+ Beratung','Coming-Out-Beratung'];
+    const orientations = ['homosexuell','bisexuell','pansexuell','queer','nicht-binär'];
+    const contexts = [
+      'Arbeitsrechtliche Beratung wegen Diskriminierung am Arbeitsplatz',
+      'Psychosoziale Beratung — Coming-Out-Prozess',
+      'Rechtliche Beratung Partnerschaftsrecht / Adoption',
+      'Beratung wegen diskriminierender Behandlung im Gesundheitswesen',
+    ];
+    return `Beratungsprotokoll — ${rnd(orgs)} ${rnd(CITIES)}
+Datum: ${randDate()}  |  Fall-Nr.: QBR-${rndInt(10000,99999)}
+
+Ratsuchende Person:
+  Name:          ${person}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  Telefon:       ${randPhone()}
+  E-Mail:        ${randEmail(person)}
+
+Anlass:        ${rnd(contexts)}
+Selbstangabe sexuelle Orientierung / Geschlechtsidentität: ${rnd(orientations)}
+
+Beraterin: ${advisor}
+Kontakt:   ${randEmail(advisor)}  |  ${randPhone()}
+
+Dokumentierte Vorfälle: ${rndInt(1,4)}
+Nächster Termin: ${randDate()}
+
+⚠ Vertraulich — Art. 9 DSGVO (besondere Kategorien): Daten zur sexuellen Orientierung dürfen nur mit ausdrücklicher Einwilligung verarbeitet werden.`;
+  },
+
+  hr: () => {
+    const emp     = randName();
+    const manager = randName();
+    const depts   = ['Engineering','Marketing','Finance','Legal','Operations','Product','HR','Sales'];
+    const levels  = ['Junior','Mid-Level','Senior','Lead','Principal'];
+    return `Personalakte — Vertraulich
+Unternehmen: ${rnd(['TechCorp GmbH','DataSystems AG','Digital Solutions GmbH','InnovateCo SE'])} ${rnd(CITIES)}
+Erstellt: ${randDate()}  |  Personal-Nr.: HR-${rndInt(10000,99999)}
+
+Mitarbeiter:
+  Name:          ${emp}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  Telefon:       ${randPhone()}
+  E-Mail:        ${randEmail(emp)}
+  IBAN (Gehalt): ${randIBAN()}
+  Steuer-ID:     ${rndInt(10000000000,99999999999)}
+  Ausweis-Nr.:   ${randPassport()}
+
+Abteilung:     ${rnd(depts)}
+Position:      ${rnd(levels)} ${rnd(['Developer','Analyst','Manager','Consultant','Engineer'])}
+Eintrittsdatum: ${randDate()}
+Bruttogehalt:  ${rndInt(38000,110000)} €/Jahr
+Urlaubstage:   ${rndInt(24,30)} Tage
+
+Direkte Führungskraft: ${manager}
+E-Mail Führungskraft:  ${randEmail(manager)}
+
+Letzte Beurteilung: ${rnd(['Hervorragend','Übertrifft Erwartungen','Erfüllt Erwartungen','Entwicklungsbedarf'])} (${randDate()})
+Krankheitstage letztes Jahr: ${rndInt(0,22)}`;
+  },
+
+  legal: () => {
+    const defendant = randName();
+    const plaintiff = randName();
+    const lawyer    = `Rechtsanwalt ${randName()}`;
+    const cases = [
+      {type:'Zivilsache',matter:'Mietstreitigkeiten — fristlose Kündigung',az:`${rndInt(1,9)} C ${rndInt(100,999)}/${rndInt(20,25)}`},
+      {type:'Strafsache',matter:'Körperverletzung gem. § 223 StGB',az:`${rndInt(1,9)} Ds ${rndInt(100,999)}/${rndInt(20,25)}`},
+      {type:'Verwaltungssache',matter:'Widerspruch gegen Bußgeldbescheid',az:`${rndInt(1,9)} K ${rndInt(100,999)}/${rndInt(20,25)}`},
+      {type:'Arbeitssache',matter:'Kündigungsschutzklage § 4 KSchG',az:`${rndInt(1,9)} Ca ${rndInt(100,999)}/${rndInt(20,25)}`},
+    ];
+    const c = rnd(cases);
+    return `Aktennotiz — ${c.type}
+Gericht: ${rnd(['Amtsgericht','Landgericht','Verwaltungsgericht'])} ${rnd(CITIES)}
+Aktenzeichen: ${c.az}  |  Datum: ${randDate()}
+
+Beklagte / Beschuldigte Person:
+  Name:          ${defendant}
+  Geburtsdatum:  ${randDate()}
+  Adresse:       ${randAddress()}
+  Telefon:       ${randPhone()}
+  E-Mail:        ${randEmail(defendant)}
+  Ausweis-Nr.:   ${randPassport()}
+
+Kläger / Geschädigte Person:
+  Name:          ${plaintiff}
+  Adresse:       ${randAddress()}
+  E-Mail:        ${randEmail(plaintiff)}
+
+Rechtsanwalt:  ${lawyer}
+Kontakt:       ${randEmail(lawyer.replace('Rechtsanwalt ',''))}  |  ${randPhone()}
+
+Sachverhalt: ${c.matter}
+Verhandlungstermin: ${randDate()}
+Aktenstand: ${rnd(['Klageschrift eingereicht','Ladung zugestellt','Beweisaufnahme','Urteil ausstehend','Vergleich angestrebt'])}
+
+Streitwert / Bußgeld: ${rndInt(500,25000)} €`;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  UI LAYER
+//  One document, three stages, one surface. Detection is continuous: the
+//  pseudonymized text is always current, so "sending" is just a transmission
+//  and never a separate transformation step the user has to trigger.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+// ── State ─────────────────────────────────────────────────────────────────
+let activeRules = new Set(Object.keys(RULES));
+const mutedValues = new Set();   // originals the user explicitly ruled out
+const manualMarks = new Map();   // original -> TYPE, set by hand; beats every detector
+
+let spans = [];          // resolved detections in document order
+let findings = [];       // unique live originals, first-appearance order
+let mutedFindings = [];  // unique muted originals (kept so they can be brought back)
+let mapping = {};        // original -> { replacement, type }   ← never transmitted
+let pseudoText = '';     // exactly what the model would receive
+
+let sentMapping = null;  // snapshot taken at send time; restore uses this
+let rawAnswer = '';
+let restoredAnswer = '';
+let showRaw = false;
+let busy = false;
+
+// ── DOM ───────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const docEl = $('doc'), mirrorEl = $('mirror');
+const instrEl = $('instr'), sendBtn = $('sendBtn'), sendHint = $('sendHint');
+const previewEl = $('previewText');
+const railScroll = $('railScroll'), tallyEl = $('tally'), fabTallyEl = $('fabTally');
+const stageInput = $('stageInput'), inputFull = $('inputFull'), inputStrip = $('inputStrip');
+const stageSend = $('stageSend'), stageAnswer = $('stageAnswer');
+const stripFacts = $('stripFacts'), sendFacts = $('sendFacts');
+const answerBody = $('answerBody'), answerWarn = $('answerWarn'), answerNote = $('answerNote');
+const rail = $('rail');
+
+// Floating layers are created here rather than in the markup: they are pure
+// interaction surfaces with no meaning when JS is off.
+const pop = document.createElement('div');
+pop.className = 'pop'; pop.hidden = true; document.body.appendChild(pop);
+const selChip = document.createElement('button');
+selChip.className = 'sel-chip'; selChip.hidden = true;
+selChip.textContent = 'Als Platzhalter markieren';
+document.body.appendChild(selChip);
+
+// ═══ DETECTION ════════════════════════════════════════════════════════════
+// Most specific / longest structured matches first; free-text names last.
+const DETECT_ORDER = ['iban','creditcard','taxid','passport','insurance','ip',
+  'email','phone','date','address','health','religion','political','sexual','name'];
+
+function allOccurrences(text, needle) {
+  const out = [];
+  if (!needle) return out;
+  let i = text.indexOf(needle);
+  while (i !== -1) { out.push(i); i = text.indexOf(needle, i + needle.length); }
+  return out;
+}
+
+// Returns character-offset spans, not a rewritten string. Offsets are what make
+// live highlighting possible, and they also make replacement exact: the old
+// split/join approach rewrote every substring occurrence, so a detected name
+// "Jan" silently corrupted the word "Januar".
+function detect(text) {
+  const raw = [];
+
+  // prio -1: the user has already ruled on these, so nothing may override them.
+  manualMarks.forEach((type, value) => {
+    allOccurrences(text, value).forEach(i => {
+      raw.push({ start: i, end: i + value.length, value, type, prio: -1, manual: true });
+    });
+  });
+
+  DETECT_ORDER.forEach((key, prio) => {
+    if (!activeRules.has(key)) return;
+    const rule = RULES[key];
+    const flags = rule.re.flags.includes('g') ? rule.re.flags : rule.re.flags + 'g';
+    const re = new RegExp(rule.re.source, flags);
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m[0] === '') { re.lastIndex++; continue; }
+      if (rule.validate && !rule.validate(m[0])) continue;
+      // A variable-length lookbehind such as (?<=Diagnose[:\s]{1,4}) lets the match
+      // start on the separator space, which renders as "Diagnose:«HEALTH_DATA_1»".
+      // Trim whitespace off both edges so a placeholder never eats its own padding.
+      let start = m.index, end = m.index + m[0].length;
+      while (start < end && /\s/.test(text[start])) start++;
+      while (end > start && /\s/.test(text[end - 1])) end--;
+      if (end <= start) continue;
+      raw.push({
+        start, end, value: text.slice(start, end),
+        type: RULE_TYPE[key], ruleKey: key, prio,
+      });
+    }
+  });
+
+  return resolveOverlaps(raw);
+}
+
+// Explicit overlap rule, replacing the old "sequential replace makes tokens
+// unmatchable" side effect: priority wins, then leftmost, then longest.
+function resolveOverlaps(list) {
+  list.sort((a, b) => a.prio - b.prio || a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const kept = [];
+  list.forEach(s => {
+    if (kept.some(k => s.start < k.end && k.start < s.end)) return;
+    kept.push(s);
+  });
+  kept.sort((a, b) => a.start - b.start);
+  kept.forEach((s, i) => { s.id = i; s.muted = mutedValues.has(s.value); });
+  return kept;
+}
+
+// Same original value anywhere in the document → same token, so the model can
+// tell that two mentions are the same person.
+function buildRun(text, list) {
+  const live = list.filter(s => !s.muted);
+  const map = Object.create(null);
+  const counters = Object.create(null);
+  const byValue = new Map();
+  const finds = [];
+
+  live.forEach(s => {
+    let f = byValue.get(s.value);
+    if (!f) {
+      counters[s.type] = (counters[s.type] || 0) + 1;
+      const replacement = `«${s.type}_${counters[s.type]}»`;
+      map[s.value] = { replacement, type: s.type };
+      f = { original: s.value, replacement, type: s.type, manual: !!s.manual, spanIds: [] };
+      byValue.set(s.value, f);
+      finds.push(f);
+    }
+    s.replacement = f.replacement;
+    f.spanIds.push(s.id);
+  });
+
+  let out = '', cur = 0;
+  live.forEach(s => { out += text.slice(cur, s.start) + s.replacement; cur = s.end; });
+  out += text.slice(cur);
+
+  const offByValue = new Map();
+  const off = [];
+  list.filter(s => s.muted).forEach(s => {
+    let o = offByValue.get(s.value);
+    if (!o) {
+      o = { original: s.value, type: s.type, muted: true, spanIds: [] };
+      offByValue.set(s.value, o);
+      off.push(o);
+    }
+    o.spanIds.push(s.id);
+  });
+
+  return { text: out, mapping: map, findings: finds, muted: off };
+}
+
+// ═══ RENDER ═══════════════════════════════════════════════════════════════
+function refresh() {
+  const text = docEl.value;
+  spans = detect(text);
+  const run = buildRun(text, spans);
+  pseudoText = run.text;
+  mapping = run.mapping;
+  findings = run.findings;
+  mutedFindings = run.muted;
+
+  autoGrow(docEl);
+  paintMirror(text);
+  paintRail();
+  paintPreview();
+  updateSendState();
+}
+
+function paintMirror(text) {
+  let html = '', cur = 0;
+  spans.forEach(s => {
+    html += esc(text.slice(cur, s.start));
+    const cls = s.muted ? 'muted' : 't' + tierOf(s.type);
+    html += `<mark class="${cls}" data-sid="${s.id}">${esc(s.value)}</mark>`;
+    cur = s.end;
+  });
+  html += esc(text.slice(cur));
+  // Trailing newline keeps the mirror's last line box the same height as the
+  // textarea's, which otherwise reserves a line for the caret and drifts.
+  mirrorEl.innerHTML = html + '\n';
+}
+
+function art9Count() { return findings.filter(f => tierOf(f.type) === 3).length; }
+
+function paintRail() {
+  tallyEl.textContent = findings.length;
+  fabTallyEl.textContent = findings.length;
+
+  const rows = findings.concat(mutedFindings);
+  if (!rows.length) {
+    railScroll.innerHTML = '<div class="rail-empty">'
+      + (docEl.value.trim()
+        ? 'Keine personenbezogenen Daten erkannt. Die Erkennung ist best-effort — Text bitte selbst prüfen.'
+        : 'Noch keine personenbezogenen Daten erkannt. Die Liste füllt sich, während Sie schreiben.')
+      + '</div>';
+    return;
+  }
+
+  let html = '';
+  TIER_ORDER.forEach(tier => {
+    const group = rows.filter(f => tierOf(f.type) === tier);
+    if (!group.length) return;
+    html += `<div class="tier-head t${tier}"><span class="bar"></span>${esc(TIER_LABEL[tier])}`
+      + `<span style="margin-left:auto;font-family:var(--mono)">${group.length}</span></div>`;
+    group.forEach(f => { html += findRow(f, tier); });
+  });
+  railScroll.innerHTML = html;
+}
+
+function findRow(f, tier) {
+  const d = displayFor(f.type);
+  const mark = tier === 3 ? '⌁' : '§';
+  const head = f.muted
+    ? esc(d.label) + ' — ignoriert'
+    : esc(f.replacement) + (f.manual ? ' <span style="color:var(--ink3)">manuell</span>' : '');
+  return `<div class="find t${tier}${f.muted ? ' off' : ''}" data-spans="${f.spanIds.join(',')}">
+    <span class="find-mark" aria-hidden="true">${mark}</span>
+    <span class="find-token">${head}${tier === 3 ? '<span class="find-art9">Art. 9</span>' : ''}</span>
+    <span class="find-orig" title="${escAttr(f.original)}">${esc(f.original)}</span>
+    <button class="find-act" data-toggle="${escAttr(f.original)}">${f.muted ? 'Wieder erfassen' : 'Ignorieren'}</button>
+  </div>`;
+}
+
+// The preview shows only category labels on hover — never the original value.
+// It is a faithful render of what leaves the browser, so it must not leak.
+function paintPreview() {
+  if (!pseudoText.trim()) {
+    previewEl.innerHTML = '<span class="answer-empty">Noch kein Text eingegeben.</span>';
+    return;
+  }
+  const tagToType = {};
+  Object.keys(mapping).forEach(k => { tagToType[mapping[k].replacement] = mapping[k].type; });
+  previewEl.innerHTML = pseudoText.split(/(«[A-Z_]+?_\d+»)/g).map(part => {
+    if (/^«[A-Z_]+?_\d+»$/.test(part)) {
+      const d = displayFor(tagToType[part]);
+      return `<span class="tok t${d.tier}" title="${escAttr(d.label)}">${esc(part)}</span>`;
+    }
+    return esc(part);
+  }).join('');
+}
+
+function factsHtml() {
+  const n = findings.length, a = art9Count();
+  if (!n) return '<b>0</b> Ersetzungen';
+  return `<b>${n}</b> Ersetzung${n > 1 ? 'en' : ''}`
+    + (a ? ` · <span class="art9">${a} × Art. 9</span>` : '');
+}
+
+function setHint(html, cls) {
+  sendHint.className = 'send-hint' + (cls ? ' ' + cls : '');
+  sendHint.innerHTML = html;
+}
+
+function updateSendState() {
+  const p = currentProvider();
+  const hasText = docEl.value.trim().length > 0;
+  const model = effectiveModel();
+  const keyOk = !p.needsKey || aiKeyEl.value.trim();
+  sendBtn.disabled = busy || !(hasText && model && keyOk);
+  if (busy) return;
+
+  if (!hasText) {
+    setHint('Text einfügen — die Erkennung startet automatisch.');
+  } else if (!keyOk || !model) {
+    setHint('Kein Modell konfiguriert. <button class="find-act" data-open-cfg="1" style="color:var(--wax)">Jetzt einrichten</button>', 'err');
+  } else {
+    const a = art9Count();
+    setHint(`${findings.length} Ersetzung${findings.length === 1 ? '' : 'en'}`
+      + (a ? ` · <span style="color:var(--wax)">${a} × Art. 9</span>` : '')
+      + ` · <kbd>Strg</kbd> + <kbd>Enter</kbd>`);
+  }
+}
+
+// ═══ COMPOSER INTERACTION ═════════════════════════════════════════════════
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+let debounce;
+docEl.addEventListener('input', () => {
+  clearTimeout(debounce);
+  // 150 ms: 15 regexes over a long Akte is not free, but slower than this and
+  // the highlights visibly lag the caret.
+  debounce = setTimeout(refresh, 150);
+  autoGrow(docEl);
+  hideSelChip();
+  closePop();
+});
+docEl.addEventListener('scroll', () => { mirrorEl.scrollTop = docEl.scrollTop; });
+
+let lastPointer = { x: 120, y: 200 };
+
+docEl.addEventListener('mouseup', e => {
+  lastPointer = { x: e.clientX, y: e.clientY };
+  setTimeout(afterCaretMove, 0);
+});
+docEl.addEventListener('keyup', e => {
+  if (e.key === 'Escape') { hideSelChip(); closePop(); return; }
+  setTimeout(afterCaretMove, 0);
+});
+
+function afterCaretMove() {
+  const a = docEl.selectionStart, b = docEl.selectionEnd;
+  if (a !== b) {
+    closePop();
+    showSelChip();
+    return;
+  }
+  hideSelChip();
+  const s = spans.find(sp => a >= sp.start && a <= sp.end);
+  if (s) openSpanPop(s); else closePop();
+}
+
+function showSelChip() {
+  if (!docEl.value.slice(docEl.selectionStart, docEl.selectionEnd).trim()) { hideSelChip(); return; }
+  selChip.hidden = false;
+  const w = selChip.offsetWidth || 190;
+  selChip.style.left = Math.min(Math.max(lastPointer.x - w / 2, 10), window.innerWidth - w - 10) + 'px';
+  selChip.style.top = Math.min(lastPointer.y + 16, window.innerHeight - 46) + 'px';
+}
+function hideSelChip() { selChip.hidden = true; }
+
+// mousedown + preventDefault so the textarea keeps its selection when clicked.
+selChip.addEventListener('mousedown', e => {
+  e.preventDefault();
+  const value = docEl.value.slice(docEl.selectionStart, docEl.selectionEnd).trim();
+  if (!value) return;
+  openCategoryPop(selChip.getBoundingClientRect(), 'Kategorie für Auswahl', type => {
+    manualMarks.set(value, type);
+    mutedValues.delete(value);
+    hideSelChip();
+    refresh();
+  });
+});
+
+function placePop(rect) {
+  pop.hidden = false;
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = rect.left;
+  let top = rect.bottom + 6;
+  if (left + w > window.innerWidth - 10) left = window.innerWidth - w - 10;
+  if (top + h > window.innerHeight - 10) top = Math.max(10, rect.top - h - 6);
+  pop.style.left = Math.max(10, left) + 'px';
+  pop.style.top = top + 'px';
+}
+function closePop() { pop.hidden = true; pop.innerHTML = ''; }
+
+function openSpanPop(s) {
+  const d = displayFor(s.type);
+  const tier = d.tier;
+  pop.innerHTML = `
+    <div class="pop-head">
+      <div class="pop-type t${tier}">${esc(d.label)}${tier === 3 ? ' · Art. 9 DSGVO' : ''}</div>
+      <div class="pop-val">${esc(s.value)}</div>
+      <div class="pop-tok">${s.muted ? 'wird unverändert gesendet' : '→ ' + esc(s.replacement || '')}</div>
+    </div>
+    <div class="pop-list">
+      <button class="pop-item" data-act="mute"><span class="swatch t0"></span>${s.muted ? 'Wieder erfassen' : 'Erkennung verwerfen'}</button>
+      <button class="pop-item" data-act="cat"><span class="swatch t${tier}"></span>Kategorie ändern</button>
+      ${s.manual ? '<button class="pop-item" data-act="unmark"><span class="swatch t0"></span>Manuelle Markierung entfernen</button>' : ''}
+    </div>`;
+  const rect = anchorRect(s);
+  placePop(rect);
+  pop.querySelectorAll('.pop-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.act;
+      if (act === 'mute') { toggleMute(s.value); closePop(); }
+      else if (act === 'unmark') { manualMarks.delete(s.value); closePop(); refresh(); }
+      else openCategoryPop(rect, 'Neue Kategorie', type => {
+        manualMarks.set(s.value, type);
+        mutedValues.delete(s.value);
+        closePop();
+        refresh();
+      });
+    });
+  });
+}
+
+// The mirror has the real geometry (the textarea's own glyphs are unaddressable),
+// so anchor floating UI to the corresponding <mark>.
+function anchorRect(s) {
+  const el = mirrorEl.querySelector(`[data-sid="${s.id}"]`);
+  if (el) return el.getBoundingClientRect();
+  return { left: lastPointer.x, top: lastPointer.y, bottom: lastPointer.y + 4, right: lastPointer.x };
+}
+
+const MANUAL_TYPES = ['NAME', 'EMAIL', 'PHONE', 'ADDRESS', 'DATE', 'NUMBER',
+  'HEALTH_DATA', 'RELIGION', 'POLITICAL', 'SEXUAL_ORIENT', 'CUSTOM'];
+
+function openCategoryPop(rect, label, onPick) {
+  pop.innerHTML = `<div class="pop-label">${esc(label)}</div><div class="pop-list">`
+    + MANUAL_TYPES.map(type => {
+        const d = displayFor(type);
+        return `<button class="pop-item" data-type="${type}"><span class="swatch t${d.tier}"></span>${esc(d.label)}<span class="pop-code">${type}</span></button>`;
+      }).join('')
+    + '</div>';
+  placePop(rect);
+  pop.querySelectorAll('.pop-item').forEach(btn => {
+    btn.addEventListener('click', () => onPick(btn.dataset.type));
+  });
+}
+
+function toggleMute(value) {
+  if (mutedValues.has(value)) mutedValues.delete(value); else mutedValues.add(value);
+  refresh();
+}
+
+// ═══ RAIL ═════════════════════════════════════════════════════════════════
+railScroll.addEventListener('click', e => {
+  const btn = e.target.closest('.find-act');
+  if (btn) { toggleMute(btn.dataset.toggle); return; }
+});
+railScroll.addEventListener('mouseover', e => {
+  const row = e.target.closest('.find');
+  if (!row) return;
+  row.classList.add('hot');
+  row.dataset.spans.split(',').filter(Boolean).forEach(id => {
+    const m = mirrorEl.querySelector(`[data-sid="${id}"]`);
+    if (m) m.classList.add('focus');
+  });
+});
+railScroll.addEventListener('mouseout', e => {
+  const row = e.target.closest('.find');
+  if (!row) return;
+  row.classList.remove('hot');
+  mirrorEl.querySelectorAll('.focus').forEach(m => m.classList.remove('focus'));
+});
+
+sendHint.addEventListener('click', e => {
+  if (e.target.closest('[data-open-cfg]')) openCfg();
+});
+
+// ── Rule toggles ──────────────────────────────────────────────────────────
+const RULE_GROUPS = {
+  standard: ['name', 'email', 'phone', 'address', 'date', 'passport', 'ip'],
+  financial: ['iban', 'creditcard', 'taxid', 'insurance'],
+  art9: ['health', 'religion', 'political', 'sexual'],
+};
+
+function updateRuleCounts() {
+  let total = 0, act = 0;
+  Object.keys(RULE_GROUPS).forEach(g => {
+    const keys = RULE_GROUPS[g];
+    const a = keys.filter(k => activeRules.has(k)).length;
+    const el = document.querySelector(`.rg-count[data-group="${g}"]`);
+    if (el) el.textContent = `${a}/${keys.length}`;
+    total += keys.length; act += a;
+  });
+  $('rulesCount').textContent = `${act}/${total}`;
+}
+
+document.querySelectorAll('.rule-toggle').forEach(btn => {
+  const flip = () => {
+    const r = btn.dataset.rule;
+    if (activeRules.has(r)) activeRules.delete(r); else activeRules.add(r);
+    btn.classList.toggle('active', activeRules.has(r));
+    btn.setAttribute('aria-checked', String(activeRules.has(r)));
+    updateRuleCounts();
+    refresh();
+  };
+  btn.addEventListener('click', flip);
+  btn.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); }
+  });
+});
+
+document.querySelectorAll('.rg-link').forEach(btn => {
+  btn.addEventListener('click', () => {
+    RULE_GROUPS[btn.dataset.group].forEach(k => {
+      if (btn.dataset.mode === 'all') activeRules.add(k); else activeRules.delete(k);
+      const t = document.querySelector(`.rule-toggle[data-rule="${k}"]`);
+      if (t) {
+        t.classList.toggle('active', activeRules.has(k));
+        t.setAttribute('aria-checked', String(activeRules.has(k)));
+      }
+    });
+    updateRuleCounts();
+    refresh();
+  });
+});
+
+// ── Disclosures ───────────────────────────────────────────────────────────
+function wireDisclosure(btnId, bodyId) {
+  const btn = $(btnId), body = $(bodyId);
+  btn.addEventListener('click', () => {
+    const open = body.hidden;
+    body.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  });
+}
+wireDisclosure('rulesToggle', 'rulesBody');
+wireDisclosure('legalToggle', 'legalBody');
+wireDisclosure('prevToggle', 'prevBody');
+wireDisclosure('manualToggle', 'manualZone');
+
+// ── Rail as bottom sheet on narrow screens ────────────────────────────────
+$('railFab').addEventListener('click', () => {
+  rail.classList.add('open');
+  $('railClose').style.display = 'grid';
+});
+$('railClose').addEventListener('click', () => rail.classList.remove('open'));
+
+// ── Theme ─────────────────────────────────────────────────────────────────
+const themeBtn = $('themeToggle');
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  themeBtn.title = t === 'dark' ? 'Zu heller Darstellung wechseln' : 'Zu dunkler Darstellung wechseln';
+}
+const prefersDark = (typeof matchMedia === 'function') && matchMedia('(prefers-color-scheme: dark)').matches;
+applyTheme(localStorage.getItem('dataguard.theme') || (prefersDark ? 'dark' : 'light'));
+themeBtn.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('dataguard.theme', next);
+  applyTheme(next);
+});
+
+// ── Sample documents ──────────────────────────────────────────────────────
+const GEN_LABEL = {
+  health:     ['Patientenakte',            'GESUNDHEIT', 3],
+  banking:    ['Beratungsprotokoll Bank',  'FINANZEN',   2],
+  university: ['Studierendendaten',        'BILDUNG',    1],
+  political:  ['Parteimitgliedschaft',     'ART. 9',     3],
+  religious:  ['Religionszugehörigkeit',   'ART. 9',     3],
+  sexual:     ['Beratung — Orientierung',  'ART. 9',     3],
+  hr:         ['Personalakte',             'PERSONAL',   1],
+  legal:      ['Gerichtsakte',             'JUSTIZ',     1],
+};
+$('genBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!pop.hidden && pop.dataset.kind === 'gen') { closePop(); return; }
+  pop.dataset.kind = 'gen';
+  pop.innerHTML = '<div class="pop-label">Beispielakte einfügen</div><div class="pop-list">'
+    + Object.keys(GEN_LABEL).map(cat => {
+        const [label, code, tier] = GEN_LABEL[cat];
+        return `<button class="pop-item" data-gen="${cat}"><span class="swatch t${tier}"></span>${esc(label)}<span class="pop-code">${code}</span></button>`;
+      }).join('')
+    + '</div>';
+  placePop($('genBtn').getBoundingClientRect());
+  pop.querySelectorAll('[data-gen]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      docEl.value = GENERATORS[btn.dataset.gen]();
+      mutedValues.clear(); manualMarks.clear();
+      resetStages();
+      closePop();
+      refresh();
+      docEl.focus();
+    });
+  });
+});
+
+$('clearBtn').addEventListener('click', () => {
+  docEl.value = '';
+  mutedValues.clear(); manualMarks.clear();
+  resetStages();
+  refresh();
+  docEl.focus();
+});
+
+document.addEventListener('mousedown', e => {
+  if (pop.hidden) return;
+  if (pop.contains(e.target) || e.target === selChip || e.target.closest('#genBtn')) return;
+  if (e.target === docEl) return;   // the caret handler decides
+  closePop();
+  pop.dataset.kind = '';
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closePop(); hideSelChip(); closeCfg(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); send(); }
+});
+
+// ═══ STAGES ═══════════════════════════════════════════════════════════════
+function collapseInput(on) {
+  inputFull.hidden = on;
+  inputStrip.hidden = !on;
+  if (on) stripFacts.innerHTML = factsHtml();
+}
+$('reopenBtn').addEventListener('click', () => {
+  collapseInput(false);
+  stageInput.scrollIntoView({ block: 'start' });
+  docEl.focus();
+});
+function resetStages() {
+  collapseInput(false);
+  stageSend.hidden = true;
+  stageAnswer.hidden = true;
+  sentMapping = null;
+  rawAnswer = ''; restoredAnswer = ''; showRaw = false;
+  $('restoreInput').value = '';
+  answerWarn.hidden = true;
+}
+
+// ═══ RESTORE ══════════════════════════════════════════════════════════════
+// Tolerant matcher for a placeholder core like "EMAIL_1": requires a leading «/[
+// and trailing »/] delimiter, but tolerates case changes and stray whitespace.
+function tolerantTokenRe(core) {
+  const parts = core.split(/_(?=\d+$)/);
+  const type = parts[0];
+  const num = parts[1];
+  const t = type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/_/g, '[_ ]');
+  return new RegExp(`(?:\\u00ab|\\[\\[?)\\s*${t}\\s*[_ ]\\s*${num}\\s*(?:\\u00bb|\\]\\]?)`, 'gi');
+}
+
+// Restores against the mapping of the run that was actually sent — editing the
+// document afterwards must not silently change what a token means.
+function restoreFrom(aiText) {
+  const map = sentMapping || mapping;
+  const entries = Object.keys(map)
+    .map(orig => ({ orig, core: map[orig].replacement.replace(/^«|»$/g, '') }))
+    .sort((a, b) => b.core.length - a.core.length);   // longest core first: no prefix collisions
+
+  let text = aiText, count = 0;
+  entries.forEach(({ orig, core }) => {
+    text = text.replace(tolerantTokenRe(core), () => { count++; return orig; });
+  });
+
+  // Anything still shaped like a placeholder = the model mangled or invented one.
+  const leftover = [...new Set(
+    (text.match(/(?:«|\[\[?)\s*[A-Z][A-Z_ ]*[_ ]\d+\s*(?:»|\]\]?)/gi) || []).map(s => s.trim())
+  )];
+  return { text, count, leftover, total: entries.length };
+}
+
+function showAnswer(raw) {
+  rawAnswer = raw;
+  const r = restoreFrom(raw);
+  restoredAnswer = r.text;
+  showRaw = false;
+  stageAnswer.hidden = false;
+  renderAnswer();
+
+  if (r.leftover.length) {
+    answerWarn.hidden = false;
+    answerWarn.className = 'notice';
+    answerWarn.innerHTML = `${r.leftover.length} Platzhalter konnte${r.leftover.length > 1 ? 'n' : ''} nicht zugeordnet werden — `
+      + `das Modell hat sie verändert. Bitte manuell prüfen: <code>${r.leftover.map(esc).join('</code>, <code>')}</code>`;
+  } else if (r.count === 0 && r.total > 0) {
+    answerWarn.hidden = false;
+    answerWarn.className = 'notice info';
+    answerWarn.textContent = 'Die Antwort enthielt keine Platzhalter — es wurde nichts zurückgeschrieben.';
+  } else {
+    answerWarn.hidden = true;
+  }
+  answerNote.textContent = r.count
+    ? `${r.count} Platzhalter lokal zurückgeschrieben`
+    : 'Keine Platzhalter in der Antwort';
+
+  answerBody.classList.add('flash');
+  setTimeout(() => answerBody.classList.remove('flash'), 1200);
+  stageAnswer.scrollIntoView({ block: 'nearest' });
+}
+
+function renderAnswer() {
+  const text = showRaw ? rawAnswer : restoredAnswer;
+  answerBody.className = 'answer' + (showRaw ? ' placeholder-view' : '');
+  answerBody.textContent = text || '';
+  $('rawToggle').classList.toggle('on', showRaw);
+  $('rawToggle').textContent = showRaw ? 'Klartext-Fassung' : 'Platzhalter-Fassung';
+}
+$('rawToggle').addEventListener('click', () => { showRaw = !showRaw; renderAnswer(); });
+
+$('restoreBtn').addEventListener('click', () => {
+  const text = $('restoreInput').value;
+  if (!text.trim()) return;
+  if (!sentMapping && !Object.keys(mapping).length) {
+    answerWarn.hidden = false;
+    answerWarn.className = 'notice';
+    answerWarn.textContent = 'Kein Mapping vorhanden — es wurde noch kein Text pseudonymisiert.';
+    stageAnswer.hidden = false;
+    return;
+  }
+  if (!sentMapping) sentMapping = mapping;
+  showAnswer(text);
+});
+
+// ── Copy ──────────────────────────────────────────────────────────────────
+function copyWithFeedback(btn, text, label) {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Kopiert';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = label; btn.classList.remove('ok'); }, 1600);
+  });
+}
+$('copyPrevBtn').addEventListener('click', e =>
+  copyWithFeedback(e.currentTarget, pseudoText, 'Pseudonymisierten Text kopieren'));
+$('copyAnswerBtn').addEventListener('click', e =>
+  copyWithFeedback(e.currentTarget, showRaw ? rawAnswer : restoredAnswer, 'Kopieren'));
+
+// ── AI request (multi-provider, client-side) ─────────────────────────────────
+const PROVIDERS = {
+  mistral: {
+    keyPlaceholder: 'Mistral API key', needsKey: true,
+    models: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest'],
+    note: 'Sent to api.mistral.ai (EU-hosted).',
+    endpoint: () => 'https://api.mistral.ai/v1/chat/completions',
+    headers: key => ({ 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' }),
+    body: (model, sys, user) => ({ model, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    extract: d => d.choices?.[0]?.message?.content,
+  },
+  openai: {
+    keyPlaceholder: 'OpenAI API key', needsKey: true,
+    models: ['gpt-4o', 'gpt-4o-mini'],
+    note: 'Sent to api.openai.com (US provider — Art. 44 DSGVO transfer applies).',
+    endpoint: () => 'https://api.openai.com/v1/chat/completions',
+    headers: key => ({ 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' }),
+    body: (model, sys, user) => ({ model, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    extract: d => d.choices?.[0]?.message?.content,
+  },
+  anthropic: {
+    keyPlaceholder: 'Anthropic API key', needsKey: true,
+    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+    note: 'Sent to api.anthropic.com (US provider — Art. 44 DSGVO transfer applies).',
+    endpoint: () => 'https://api.anthropic.com/v1/messages',
+    headers: key => ({
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'Content-Type': 'application/json',
+    }),
+    body: (model, sys, user) => ({ model, max_tokens: 4096, system: sys, messages: [{ role: 'user', content: user }] }),
+    extract: d => d.content?.[0]?.text,
+  },
+  gemini: {
+    keyPlaceholder: 'Gemini API key', needsKey: true,
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+    note: 'Sent to generativelanguage.googleapis.com (US provider — Art. 44 DSGVO transfer applies).',
+    endpoint: (model, key) => `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (model, sys, user) => ({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ parts: [{ text: user }] }] }),
+    extract: d => d.candidates?.[0]?.content?.parts?.[0]?.text,
+  },
+  ollama: {
+    keyPlaceholder: '', needsKey: false, needsUrl: true,
+    models: ['llama3.1', 'mistral', 'qwen2.5'],
+    note: 'Local model — nothing leaves your machine. For file:// pages set OLLAMA_ORIGINS=* before starting Ollama.',
+    endpoint: () => (aiUrlEl.value.trim() || 'http://localhost:11434').replace(/\/+$/, '') + '/api/chat',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (model, sys, user) => ({ model, stream: false, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    extract: d => d.message?.content,
+  },
+};
+
+// German-facing provider metadata. Kept separate from PROVIDERS so the transport
+// definitions above stay purely technical.
+const PROVIDER_META = {
+  mistral:   { label: 'Mistral',   region: 'EU',    third: false,
+               note: 'Übertragung an api.mistral.ai — in der EU gehostet.' },
+  openai:    { label: 'OpenAI',    region: 'USA',   third: true,
+               note: 'Übertragung an api.openai.com. US-Anbieter — Art. 44 DSGVO (Drittlandübermittlung) ist zu prüfen.' },
+  anthropic: { label: 'Anthropic', region: 'USA',   third: true,
+               note: 'Übertragung an api.anthropic.com. US-Anbieter — Art. 44 DSGVO (Drittlandübermittlung) ist zu prüfen.' },
+  gemini:    { label: 'Google',    region: 'USA',   third: true,
+               note: 'Übertragung an generativelanguage.googleapis.com. US-Anbieter — Art. 44 DSGVO (Drittlandübermittlung) ist zu prüfen.' },
+  ollama:    { label: 'Ollama',    region: 'LOKAL', third: false,
+               note: 'Lokales Modell — es verlässt nichts diesen Rechner.' },
+};
+
+const aiProviderEl    = $('aiProvider');
+const aiKeyEl         = $('aiKey');
+const aiModelEl       = $('aiModel');
+const aiModelCustomEl = $('aiModelCustom');
+const aiUrlEl         = $('aiUrl');
+const cfgPanel        = $('cfgPanel');
+const scrim           = $('scrim');
+const cfgPill         = $('cfgPill');
+
+const lsGet = k => localStorage.getItem('dataguard.' + k);
+const lsSet = (k, v) => localStorage.setItem('dataguard.' + k, v);
+const lsDel = k => localStorage.removeItem('dataguard.' + k);
+
+// One-time migration from the Mistral-only version.
+if (localStorage.getItem('dataguard.mistral_key') && !lsGet('key.mistral')) {
+  lsSet('key.mistral', localStorage.getItem('dataguard.mistral_key'));
+  localStorage.removeItem('dataguard.mistral_key');
+}
+if (localStorage.getItem('dataguard.model') && !lsGet('model.mistral')) {
+  lsSet('model.mistral', localStorage.getItem('dataguard.model'));
+  localStorage.removeItem('dataguard.model');
+}
+
+function currentProvider() { return PROVIDERS[aiProviderEl.value]; }
+function effectiveModel() {
+  return aiModelEl.value === '__custom__' ? aiModelCustomEl.value.trim() : aiModelEl.value;
+}
+function configReady() {
+  const p = currentProvider();
+  return !!(effectiveModel() && (!p.needsKey || aiKeyEl.value.trim()));
+}
+
+function applyProvider() {
+  const pid = aiProviderEl.value;
+  const p = PROVIDERS[pid];
+
+  aiModelEl.innerHTML = p.models.map(m => `<option value="${m}">${m}</option>`).join('')
+    + '<option value="__custom__">eigene Modell-ID …</option>';
+  const savedModel = lsGet('model.' + pid);
+  if (savedModel && p.models.includes(savedModel)) {
+    aiModelEl.value = savedModel;
+    aiModelCustomEl.hidden = true;
+  } else if (savedModel) {
+    aiModelEl.value = '__custom__';
+    aiModelCustomEl.value = savedModel;
+    aiModelCustomEl.hidden = false;
+  } else {
+    aiModelEl.value = p.models[0];
+    aiModelCustomEl.hidden = true;
+  }
+
+  $('keyField').hidden = !p.needsKey;
+  aiKeyEl.placeholder = p.keyPlaceholder || 'API-Key';
+  aiKeyEl.value = p.needsKey ? (lsGet('key.' + pid) || '') : '';
+
+  $('urlField').hidden = !p.needsUrl;
+  if (p.needsUrl) aiUrlEl.value = lsGet('ollama_url') || 'http://localhost:11434';
+
+  paintTransfer();
+  paintPill();
+  updateSendState();
+}
+
+function paintTransfer() {
+  const m = PROVIDER_META[aiProviderEl.value];
+  const el = $('transferNote');
+  el.className = 'transfer' + (m.third ? ' warn' : '');
+  const head = m.third ? 'Art. 44 DSGVO — Drittlandübermittlung'
+             : (aiProviderEl.value === 'ollama' ? 'Keine Übermittlung' : 'Verarbeitung in der EU');
+  el.innerHTML = `<span class="t-head">${esc(head)}</span>${esc(m.note)} `
+    + 'Gesendet werden ausschließlich der pseudonymisierte Text und Ihre Anweisung — niemals das Mapping.';
+}
+
+function paintPill() {
+  const m = PROVIDER_META[aiProviderEl.value];
+  const ready = configReady();
+  $('pillModel').textContent = ready ? `${m.label} · ${effectiveModel()}` : 'Modell konfigurieren';
+  $('pillFlag').textContent = ready ? m.region : '';
+  $('pillFlag').className = 'pill-flag' + (m.third ? ' warn' : '');
+  cfgPill.classList.toggle('unset', !ready);
+  $('cfgState').textContent = ready ? 'Bereit' : 'Modell oder Key fehlt';
+}
+
+function openCfg() {
+  cfgPanel.hidden = false;
+  scrim.hidden = false;
+  (currentProvider().needsKey && !aiKeyEl.value ? aiKeyEl : aiProviderEl).focus();
+}
+function closeCfg() {
+  cfgPanel.hidden = true;
+  scrim.hidden = true;
+}
+cfgPill.addEventListener('click', openCfg);
+$('cfgClose').addEventListener('click', closeCfg);
+$('cfgApply').addEventListener('click', closeCfg);
+scrim.addEventListener('click', closeCfg);
+
+aiProviderEl.addEventListener('change', () => { lsSet('provider', aiProviderEl.value); applyProvider(); });
+aiModelEl.addEventListener('change', () => {
+  aiModelCustomEl.hidden = aiModelEl.value !== '__custom__';
+  if (aiModelEl.value !== '__custom__') lsSet('model.' + aiProviderEl.value, aiModelEl.value);
+  paintPill();
+  updateSendState();
+});
+aiModelCustomEl.addEventListener('input', () => {
+  lsSet('model.' + aiProviderEl.value, aiModelCustomEl.value.trim());
+  paintPill();
+  updateSendState();
+});
+aiKeyEl.addEventListener('input', () => {
+  lsSet('key.' + aiProviderEl.value, aiKeyEl.value.trim());
+  paintPill();
+  updateSendState();
+});
+aiUrlEl.addEventListener('input', () => lsSet('ollama_url', aiUrlEl.value.trim()));
+$('aiKeyClear').addEventListener('click', () => {
+  lsDel('key.' + aiProviderEl.value);
+  aiKeyEl.value = '';
+  paintPill();
+  updateSendState();
+});
+
+// ═══ SEND ═════════════════════════════════════════════════════════════════
+const AI_SYSTEM_PROMPT =
+  'The user text contains placeholders like «TYPE_N» (e.g. «NAME_1», «EMAIL_2»). ' +
+  'They replace sensitive personal data. Reproduce every placeholder EXACTLY as written — ' +
+  'never translate, rename, expand, merge or reformat them.';
+
+function setSendFacts(target, state, cls) {
+  sendFacts.innerHTML = `<b>${esc(target)}</b> · <span${cls ? ` style="color:var(--${cls})"` : ''}>${esc(state)}</span>`;
+}
+
+async function send() {
+  if (sendBtn.disabled || busy) return;
+  const p = currentProvider();
+  const m = PROVIDER_META[aiProviderEl.value];
+  const key = aiKeyEl.value.trim();
+  const model = effectiveModel();
+  // Snapshot both the payload and the mapping: editing mid-flight must not change
+  // what was actually transmitted or how the answer is read back.
+  const payload = pseudoText;
+  sentMapping = mapping;
+  if (!payload.trim() || !model || (p.needsKey && !key)) return;
+
+  const instruction = instrEl.value.trim()
+    || 'Bearbeite den folgenden Text sinnvoll und antworte auf Deutsch.';
+
+  busy = true;
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sendet …';
+  setHint('Übertragung läuft …', 'busy');
+  collapseInput(true);
+  stageSend.hidden = false;
+  setSendFacts(`${m.label} · ${model} · ${m.region}`, 'Übertragung läuft …', 'ochre');
+
+  try {
+    const res = await fetch(p.endpoint(model, key), {
+      method: 'POST',
+      headers: p.headers(key),
+      body: JSON.stringify(p.body(model, AI_SYSTEM_PROMPT, instruction + '\n\n---\n\n' + payload)),
+    });
+    if (!res.ok) {
+      let detail = '';
+      try { const j = await res.json(); detail = j.message || (j.error && j.error.message) || ''; }
+      catch (e) { /* body was not JSON */ }
+      setSendFacts(`${m.label} · ${model}`, `HTTP ${res.status}${detail ? ' — ' + detail : ''}`, 'wax');
+      return;
+    }
+    const data = await res.json();
+    const content = p.extract(data);
+    if (!content) {
+      setSendFacts(`${m.label} · ${model}`, 'Leere Antwort vom Anbieter', 'wax');
+      return;
+    }
+    $('restoreInput').value = content;
+    setSendFacts(`${m.label} · ${model} · ${m.region}`, `${findings.length} Platzhalter übertragen`, 'seal');
+    showAnswer(content);
+  } catch (err) {
+    setSendFacts(`${m.label} · ${model}`,
+      (err && err.message) || 'Netzwerkfehler — CORS oder offline?', 'wax');
+    $('manualZone').hidden = false;
+    $('manualToggle').setAttribute('aria-expanded', 'true');
+  } finally {
+    busy = false;
+    sendBtn.textContent = 'Senden ▸';
+    updateSendState();
+  }
+}
+sendBtn.addEventListener('click', send);
+instrEl.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); send(); }
+});
+
+// ═══ INIT ═════════════════════════════════════════════════════════════════
+aiProviderEl.value = lsGet('provider') || 'mistral';
+applyProvider();
+updateRuleCounts();
+refresh();
+// First visit with nothing configured: show the setup once, then never again.
+if (currentProvider().needsKey && !aiKeyEl.value.trim()) openCfg();
+</script>
+</body>
+</html>
